@@ -4,6 +4,8 @@
 
 Post a warning if a Pull Request will conflict with another Pull Request when they get merged.
 
+![](./misc/screenshot.png)
+
 ## Configuration
 
 ```yaml
