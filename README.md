@@ -1,5 +1,7 @@
 # conflibot
 
+:warning: Development in progress -- interfaces and behavior may change until v1 gets released.
+
 Post a warning if a Pull Request will conflict with another Pull Request when they get merged.
 
 ## Configuration
