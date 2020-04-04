@@ -1,0 +1,13 @@
+name: conflibot
+description: Post a warning if a Pull Request will conflict with another Pull Request when they get merged.
+author: "@wktk"
+inputs:
+  github-token:
+    description: "GitHub API token"
+    required: true
+runs:
+  using: 'node12'
+  main: 'dist/index.js'
+branding:
+  icon: git-pull-request
+  color: purple
