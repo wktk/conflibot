@@ -48,6 +48,15 @@ async function run(): Promise<void> {
     });
     if (pulls.data.length <= 1) return core.info("no pulls found.");
 
+    // actions/checkout@v2 is optimized to fetch a single commit by default
+    const isShallow = (
+      await system("git rev-parse --is-shallow-repository")
+    )[0].startsWith("true");
+    if (isShallow) await system("git fetch --prune --unshallow");
+
+    // actions/checkout@v2 checks out a merge commit by default
+    await system(`git checkout ${pull.data.head.ref}`);
+
     core.info(
       `First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`
     );

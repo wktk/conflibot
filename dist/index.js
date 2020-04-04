@@ -4279,6 +4279,12 @@ function run() {
             });
             if (pulls.data.length <= 1)
                 return core.info("no pulls found.");
+            // actions/checkout@v2 is optimized to fetch a single commit by default
+            const isShallow = (yield system("git rev-parse --is-shallow-repository"))[0].startsWith("true");
+            if (isShallow)
+                yield system("git fetch --prune --unshallow");
+            // actions/checkout@v2 checks out a merge commit by default
+            yield system(`git checkout ${pull.data.head.ref}`);
             core.info(`First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`);
             yield system(`git merge origin/${pull.data.base.ref} --no-edit`);
             const conflicts = [];
