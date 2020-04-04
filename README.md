@@ -12,6 +12,7 @@ jobs:
   conflibot:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
       - name: Post conflict warnings
         uses: wktk/conflibot@v1
         with:
