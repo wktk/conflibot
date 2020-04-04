@@ -4253,7 +4253,9 @@ const token = core.getInput("github-token", { required: true });
 const octokit = new github.GitHub(token);
 function waitForTestMergeCommit(times, owner, repo, number) {
     return __awaiter(this, void 0, void 0, function* () {
-        return octokit.pulls.get().then(result => {
+        return octokit.pulls
+            .get({ owner, repo, pull_number: number })
+            .then(result => {
             if (result.data.mergeable !== null)
                 return result;
             if (times == 1)
@@ -4275,22 +4277,43 @@ function run() {
                 base: pull.data.base.ref,
                 direction: "asc"
             });
-            yield system("git fetch");
-            yield system(`git checkout ${pull.data.merge_commit_sha}`);
+            if (pulls.data.length <= 1)
+                return core.info("no pulls found.");
+            core.info(`First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`);
+            yield system(`git merge origin/${pull.data.base.ref} --no-edit`);
             const conflicts = [];
             for (const target of pulls.data) {
-                yield system(`git format-patch ${pull.data.base.ref}..${target.head.ref} --stdout | git apply --check`).catch(reason => {
-                    const files = [];
-                    for (const match of reason[2].matchAll(/error: patch failed: (.*)/g)) {
-                        files.push(match[1]);
+                if (pull.data.head.sha === target.head.sha) {
+                    core.info(`Skipping #${target.number} (${target.head.ref})`);
+                    continue;
+                }
+                core.info(`Checking #${target.number} (${target.head.ref})`);
+                yield system(`git format-patch origin/${pull.data.base.ref}..origin/${target.head.ref} --stdout | git apply --check`).catch((reason) => {
+                    // Patch application error expected.  Throw an error if not.
+                    if (!reason.toString().includes("patch does not apply")) {
+                        throw reason[2];
                     }
+                    const patchFails = [];
+                    for (const match of reason[2].matchAll(/error: patch failed: (.*)/g)) {
+                        patchFails.push(match[1]);
+                    }
+                    const files = [...new Set(patchFails)]; // unique
                     conflicts.push([target, files]);
-                    core.debug(`#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`);
+                    core.info(`#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`);
                 });
             }
+            if (conflicts.length == 0)
+                return core.info("No conflicts found!");
+            const body = `Found some potential conflicts:\n${conflicts
+                .map(conflict => `- #${conflict[0].number}\n${conflict[1]
+                .map(file => `  - ${file}`)
+                .join("\n")}`)
+                .join("\n")}`;
+            octokit.issues.createComment({ owner, repo, issue_number: number, body });
         }
         catch (error) {
-            core.setFailed(error.message);
+            console.error(error);
+            core.setFailed("error!");
         }
     });
 }
