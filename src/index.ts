@@ -14,7 +14,7 @@ class Conflibot {
     this.excludedPaths = core
       .getInput("exclude")
       .split("\n")
-      .filter(x => x !== "");
+      .filter((x) => x !== "");
     core.info(`Excluded paths: ${this.excludedPaths}`);
   }
 
@@ -30,9 +30,11 @@ class Conflibot {
   > {
     const refs = await this.octokit.checks.listForRef({
       ...github.context.repo,
-      ref: github.context.ref
+      ref: github.context.ref,
     });
-    const current = refs.data.check_runs.find(check => check.name == "details");
+    const current = refs.data.check_runs.find(
+      (check) => check.name == "details"
+    );
 
     const params = {
       ...github.context.repo,
@@ -43,12 +45,12 @@ class Conflibot {
         | "completed"
         | "in_progress",
       conclusion,
-      output
+      output,
     };
     if (current) {
       return this.octokit.checks.update({
         ...params,
-        check_run_id: current.id
+        check_run_id: current.id,
       });
     } else {
       return this.octokit.checks.create(params);
@@ -64,7 +66,7 @@ class Conflibot {
     this.setStatus(conclusion, {
       title: reason,
       summary: summary || reason,
-      text: reason
+      text: reason,
     });
   }
 
@@ -79,7 +81,7 @@ class Conflibot {
       const pulls = await this.octokit.pulls.list({
         ...github.context.repo,
         base: pull.data.base.ref,
-        direction: "asc"
+        direction: "asc",
       });
       if (pulls.data.length <= 1)
         return this.exit("success", "No other pulls found.");
@@ -143,7 +145,7 @@ class Conflibot {
         return this.exit("success", "No potential conflicts found!");
 
       const text = conflicts
-        .map(conflict => {
+        .map((conflict) => {
           const branch = conflict[0].head.ref;
           const sha = conflict[0].head.sha;
           const baseUrl =
@@ -153,7 +155,7 @@ class Conflibot {
           return (
             `- #${conflict[0].number} ([${branch}](${baseUrl}/tree/${branch}))\n` +
             conflict[1]
-              .map(file => {
+              .map((file) => {
                 const match = file.match(/^(.*):(\d)$/);
                 if (!match) return `  - ${file}`;
                 return `  - [${file}](${baseUrl}/blob/${sha}/${match[1]}#L${match[2]})`;
@@ -163,7 +165,7 @@ class Conflibot {
         })
         .join("\n");
 
-      const sum = conflicts.map(c => c[1].length).reduce((p, c) => p + c);
+      const sum = conflicts.map((c) => c[1].length).reduce((p, c) => p + c);
       const files = conflicts.length;
       const summary = `Found ${sum} potential conflict(s) in ${files} file(s)!`;
       this.setStatus("neutral", { title: summary, summary, text });
@@ -188,10 +190,10 @@ class Conflibot {
       number: number;
     }
   ): Promise<Octokit.Response<Octokit.PullsGetResponse>> {
-    return this.octokit.pulls.get(pr).then(result => {
+    return this.octokit.pulls.get(pr).then((result) => {
       if (result.data.mergeable !== null) return result;
       if (times == 1) throw "Timed out while waiting for a test merge commit";
-      return new Promise(resolve =>
+      return new Promise((resolve) =>
         setTimeout(
           () => resolve(this.waitForTestMergeCommit(times - 1, pr)),
           1000
