@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "es6",
     "module": "commonjs",
-    "outDir": "./lib",
+    "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
     "lib": ["es2020.string"],
@@ -10,5 +10,6 @@
     "moduleResolution": "node",
     "esModuleInterop": true
   },
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "**/*.test.ts"]
 }
