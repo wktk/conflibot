@@ -11,18 +11,69 @@ class Conflibot {
     this.octokit = new github.GitHub(this.token);
   }
 
+  async setStatus(
+    conclusion: "success" | "failure" | "neutral" | undefined = undefined,
+    output:
+      | { title: string; summary: string; text?: string }
+      | undefined = undefined
+  ): Promise<
+    Octokit.Response<
+      Octokit.ChecksUpdateResponse | Octokit.ChecksCreateResponse
+    >
+  > {
+    const refs = await this.octokit.checks.listForRef({
+      ...github.context.repo,
+      ref: github.context.ref
+    });
+    const current = refs.data.check_runs.find(
+      check => check.name == "conflibot"
+    );
+
+    const params = {
+      ...github.context.repo,
+      name: "conflibot",
+      head_sha: (github.context.payload
+        .pull_request as Octokit.PullsGetResponse).head.sha,
+      status: (conclusion ? "completed" : "in_progress") as
+        | "completed"
+        | "in_progress",
+      conclusion,
+      output
+    };
+    if (current) {
+      return this.octokit.checks.update({
+        ...params,
+        check_run_id: current.id
+      });
+    } else {
+      return this.octokit.checks.create(params);
+    }
+  }
+
+  exit(conclusion: "success" | "failure" | "neutral", reason: string): void {
+    core.info(reason);
+    this.setStatus(conclusion, {
+      title: reason,
+      summary: reason,
+      text: reason
+    });
+  }
+
   async run(): Promise<void> {
     try {
+      this.setStatus();
+
       const pull = await this.waitForTestMergeCommit(5, github.context.issue);
       if (!pull.data.mergeable)
-        return core.info("Skipping as the PR is not mergable");
+        return this.exit("neutral", "PR is not mergable");
 
       const pulls = await this.octokit.pulls.list({
         ...github.context.repo,
         base: pull.data.base.ref,
         direction: "asc"
       });
-      if (pulls.data.length <= 1) return core.info("no pulls found.");
+      if (pulls.data.length <= 1)
+        return this.exit("success", "No other pulls found.");
 
       // actions/checkout@v2 is optimized to fetch a single commit by default
       const isShallow = (
@@ -72,7 +123,8 @@ class Conflibot {
         });
       }
 
-      if (conflicts.length == 0) return core.info("No conflicts found!");
+      if (conflicts.length == 0)
+        return this.exit("success", "No conflicts found!");
 
       const body = `Found some potential conflicts:\n${conflicts
         .map(
@@ -82,9 +134,10 @@ class Conflibot {
               .join("\n")}`
         )
         .join("\n")}`;
-      this.octokit.issues.createComment({
-        ...github.context.issue,
-        body
+      this.setStatus("neutral", {
+        title: `Found ${conflicts.length} potential conflict(s)!`,
+        summary: body,
+        text: body
       });
     } catch (error) {
       console.error(error);

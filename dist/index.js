@@ -4249,15 +4249,39 @@ class Conflibot {
         this.token = core.getInput("github-token", { required: true });
         this.octokit = new github.GitHub(this.token);
     }
+    setStatus(conclusion = undefined, output = undefined) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const refs = yield this.octokit.checks.listForRef(Object.assign(Object.assign({}, github.context.repo), { ref: github.context.ref }));
+            const current = refs.data.check_runs.find(check => check.name == "conflibot");
+            const params = Object.assign(Object.assign({}, github.context.repo), { name: "conflibot", head_sha: github.context.payload
+                    .pull_request.head.sha, status: (conclusion ? "completed" : "in_progress"), conclusion,
+                output });
+            if (current) {
+                return this.octokit.checks.update(Object.assign(Object.assign({}, params), { check_run_id: current.id }));
+            }
+            else {
+                return this.octokit.checks.create(params);
+            }
+        });
+    }
+    exit(conclusion, reason) {
+        core.info(reason);
+        this.setStatus(conclusion, {
+            title: reason,
+            summary: reason,
+            text: reason
+        });
+    }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
+                this.setStatus();
                 const pull = yield this.waitForTestMergeCommit(5, github.context.issue);
                 if (!pull.data.mergeable)
-                    return core.info("Skipping as the PR is not mergable");
+                    return this.exit("neutral", "PR is not mergable");
                 const pulls = yield this.octokit.pulls.list(Object.assign(Object.assign({}, github.context.repo), { base: pull.data.base.ref, direction: "asc" }));
                 if (pulls.data.length <= 1)
-                    return core.info("no pulls found.");
+                    return this.exit("success", "No other pulls found.");
                 // actions/checkout@v2 is optimized to fetch a single commit by default
                 const isShallow = (yield this.system("git rev-parse --is-shallow-repository"))[0].startsWith("true");
                 if (isShallow)
@@ -4288,13 +4312,17 @@ class Conflibot {
                     });
                 }
                 if (conflicts.length == 0)
-                    return core.info("No conflicts found!");
+                    return this.exit("success", "No conflicts found!");
                 const body = `Found some potential conflicts:\n${conflicts
                     .map(conflict => `- #${conflict[0].number}\n${conflict[1]
                     .map(file => `  - ${file}`)
                     .join("\n")}`)
                     .join("\n")}`;
-                this.octokit.issues.createComment(Object.assign(Object.assign({}, github.context.issue), { body }));
+                this.setStatus("neutral", {
+                    title: `Found ${conflicts.length} potential conflict(s)!`,
+                    summary: body,
+                    text: body
+                });
             }
             catch (error) {
                 console.error(error);
