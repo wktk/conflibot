@@ -5616,9 +5616,21 @@ class Conflibot {
                 if (conflicts.length == 0)
                     return this.exit("success", "No potential conflicts found!");
                 const text = conflicts
-                    .map(conflict => `- #${conflict[0].number}\n${conflict[1]
-                    .map(file => `  - ${file}`)
-                    .join("\n")}`)
+                    .map(conflict => {
+                    const branch = conflict[0].head.ref;
+                    const sha = conflict[0].head.sha;
+                    const baseUrl = `https://github.com/${github.context.repo.owner}/` +
+                        `${github.context.repo.repo}`;
+                    return (`- #${conflict[0].number} ([${branch}](${baseUrl}/tree/${branch}))\n` +
+                        conflict[1]
+                            .map(file => {
+                            const match = file.match(/^(.*):(\d)$/);
+                            if (!match)
+                                return `  - ${file}`;
+                            return `  - [${file}](${baseUrl}/blob/${sha}/${match[1]}#L${match[2]})`;
+                        })
+                            .join("\n"));
+                })
                     .join("\n");
                 const sum = conflicts.map(c => c[1].length).reduce((p, c) => p + c);
                 const files = conflicts.length;
