@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Post conflict warnings
-        uses: wktk/conflibot@master
+        uses: wktk/conflibot@v0.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
