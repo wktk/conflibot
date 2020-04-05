@@ -3,8 +3,10 @@ description: Check and warn if a Pull Request will conflict with another Pull Re
 author: "@wktk"
 inputs:
   github-token:
-    description: "GitHub API token"
+    description: GitHub API token with write access to the repo
     required: true
+  exclude:
+    description: Ignored path patterns in newline-separated glob format
 runs:
   using: 'node12'
   main: 'dist/index.js'

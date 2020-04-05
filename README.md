@@ -19,7 +19,15 @@ jobs:
         uses: wktk/conflibot@v0.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          exclude: |
+            yarn.lock
+            **/*.bin
 ```
+
+### Inputs
+
+- `github-token` *required*: GitHub API token with write access to the repo
+- `exclude`: Ignored path patterns in **newline-separated** glob format
 
 ## Screenshots
 

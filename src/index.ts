@@ -2,13 +2,20 @@ import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { Octokit } from "@octokit/rest";
 import { exec } from "child_process";
+import multimatch from "multimatch";
 
 class Conflibot {
   token: string;
   octokit: github.GitHub;
+  excludedPaths: string[];
   constructor() {
     this.token = core.getInput("github-token", { required: true });
     this.octokit = new github.GitHub(this.token);
+    this.excludedPaths = core
+      .getInput("exclude")
+      .split("\n")
+      .filter(x => x !== "");
+    core.info(`Excluded paths: ${this.excludedPaths}`);
   }
 
   async setStatus(
@@ -112,16 +119,23 @@ class Conflibot {
 
           const patchFails: Array<string> = [];
           for (const match of reason[2].matchAll(
-            /error: patch failed: (.*)/g
+            /error: patch failed: ((.*):\d+)/g
           )) {
-            patchFails.push(match[1]);
+            if (multimatch(match[2], this.excludedPaths).length > 0) {
+              core.info(`Ignoring ${match[2]}`);
+            } else {
+              patchFails.push(match[1]);
+            }
+            core.debug(JSON.stringify(match));
           }
 
           const files = [...new Set(patchFails)]; // unique
-          conflicts.push([target, files]);
-          core.info(
-            `#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`
-          );
+          if (files.length > 0) {
+            conflicts.push([target, files]);
+            core.info(
+              `#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`
+            );
+          }
         });
       }
 
