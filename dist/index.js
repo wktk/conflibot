@@ -4252,8 +4252,8 @@ class Conflibot {
     setStatus(conclusion = undefined, output = undefined) {
         return __awaiter(this, void 0, void 0, function* () {
             const refs = yield this.octokit.checks.listForRef(Object.assign(Object.assign({}, github.context.repo), { ref: github.context.ref }));
-            const current = refs.data.check_runs.find(check => check.name == "conflibot");
-            const params = Object.assign(Object.assign({}, github.context.repo), { name: "conflibot", head_sha: github.context.payload
+            const current = refs.data.check_runs.find(check => check.name == "details");
+            const params = Object.assign(Object.assign({}, github.context.repo), { name: "details", head_sha: github.context.payload
                     .pull_request.head.sha, status: (conclusion ? "completed" : "in_progress"), conclusion,
                 output });
             if (current) {

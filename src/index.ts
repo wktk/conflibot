@@ -25,13 +25,11 @@ class Conflibot {
       ...github.context.repo,
       ref: github.context.ref
     });
-    const current = refs.data.check_runs.find(
-      check => check.name == "conflibot"
-    );
+    const current = refs.data.check_runs.find(check => check.name == "details");
 
     const params = {
       ...github.context.repo,
-      name: "conflibot",
+      name: "details",
       head_sha: (github.context.payload
         .pull_request as Octokit.PullsGetResponse).head.sha,
       status: (conclusion ? "completed" : "in_progress") as
