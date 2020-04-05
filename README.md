@@ -4,8 +4,6 @@
 
 Post a warning if a Pull Request will conflict with another Pull Request when they get merged.
 
-![](./misc/screenshot.png)
-
 ## Configuration
 
 ```yaml
@@ -22,3 +20,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+## Screenshots
+
+![](./misc/checks.png)
+![](./misc/details.png)
