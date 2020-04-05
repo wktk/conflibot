@@ -48,11 +48,15 @@ class Conflibot {
     }
   }
 
-  exit(conclusion: "success" | "failure" | "neutral", reason: string): void {
+  exit(
+    conclusion: "success" | "failure" | "neutral",
+    reason: string,
+    summary?: string
+  ): void {
     core.info(reason);
     this.setStatus(conclusion, {
       title: reason,
-      summary: reason,
+      summary: summary || reason,
       text: reason
     });
   }
@@ -138,8 +142,7 @@ class Conflibot {
       const summary = `Found ${sum} potential conflict(s) in ${files} file(s)!`;
       this.setStatus("neutral", { title: summary, summary, text });
     } catch (error) {
-      console.error(error);
-      core.setFailed("error!");
+      this.exit("failure", JSON.stringify(error), "Error!");
     }
   }
 

@@ -4264,11 +4264,11 @@ class Conflibot {
             }
         });
     }
-    exit(conclusion, reason) {
+    exit(conclusion, reason, summary) {
         core.info(reason);
         this.setStatus(conclusion, {
             title: reason,
-            summary: reason,
+            summary: summary || reason,
             text: reason
         });
     }
@@ -4324,8 +4324,7 @@ class Conflibot {
                 this.setStatus("neutral", { title: summary, summary, text });
             }
             catch (error) {
-                console.error(error);
-                core.setFailed("error!");
+                this.exit("failure", JSON.stringify(error), "Error!");
             }
         });
     }
