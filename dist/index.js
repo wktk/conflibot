@@ -4313,16 +4313,15 @@ class Conflibot {
                 }
                 if (conflicts.length == 0)
                     return this.exit("success", "No conflicts found!");
-                const body = `Found some potential conflicts:\n${conflicts
+                const text = `Found some potential conflicts:\n${conflicts
                     .map(conflict => `- #${conflict[0].number}\n${conflict[1]
                     .map(file => `  - ${file}`)
                     .join("\n")}`)
                     .join("\n")}`;
-                this.setStatus("neutral", {
-                    title: `Found ${conflicts.length} potential conflict(s)!`,
-                    summary: body,
-                    text: body
-                });
+                const sum = conflicts.map(c => c[1].length).reduce((p, c) => p + c);
+                const files = conflicts.length;
+                const summary = `Found ${sum} potential conflict(s) in ${files} file(s)!`;
+                this.setStatus("neutral", { title: summary, summary, text });
             }
             catch (error) {
                 console.error(error);
