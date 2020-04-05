@@ -4252,16 +4252,10 @@ class Conflibot {
     run() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { owner, repo, number } = github.context.issue;
-                const pull = yield this.waitForTestMergeCommit(5, owner, repo, number);
+                const pull = yield this.waitForTestMergeCommit(5, github.context.issue);
                 if (!pull.data.mergeable)
                     return core.info("Skipping as the PR is not mergable");
-                const pulls = yield this.octokit.pulls.list({
-                    owner,
-                    repo,
-                    base: pull.data.base.ref,
-                    direction: "asc"
-                });
+                const pulls = yield this.octokit.pulls.list(Object.assign(Object.assign({}, github.context.repo), { base: pull.data.base.ref, direction: "asc" }));
                 if (pulls.data.length <= 1)
                     return core.info("no pulls found.");
                 // actions/checkout@v2 is optimized to fetch a single commit by default
@@ -4300,12 +4294,7 @@ class Conflibot {
                     .map(file => `  - ${file}`)
                     .join("\n")}`)
                     .join("\n")}`;
-                this.octokit.issues.createComment({
-                    owner,
-                    repo,
-                    issue_number: number,
-                    body
-                });
+                this.octokit.issues.createComment(Object.assign(Object.assign({}, github.context.issue), { body }));
             }
             catch (error) {
                 console.error(error);
@@ -4320,16 +4309,14 @@ class Conflibot {
             });
         });
     }
-    waitForTestMergeCommit(times, owner, repo, number) {
+    waitForTestMergeCommit(times, pr) {
         return __awaiter(this, void 0, void 0, function* () {
-            return this.octokit.pulls
-                .get({ owner, repo, pull_number: number })
-                .then(result => {
+            return this.octokit.pulls.get(pr).then(result => {
                 if (result.data.mergeable !== null)
                     return result;
                 if (times == 1)
                     throw "Timed out while waiting for a test merge commit";
-                return new Promise(resolve => setTimeout(() => resolve(this.waitForTestMergeCommit(times - 1, owner, repo, number)), 1000));
+                return new Promise(resolve => setTimeout(() => resolve(this.waitForTestMergeCommit(times - 1, pr)), 1000));
             });
         });
     }

@@ -13,14 +13,12 @@ class Conflibot {
 
   async run(): Promise<void> {
     try {
-      const { owner, repo, number } = github.context.issue;
-      const pull = await this.waitForTestMergeCommit(5, owner, repo, number);
+      const pull = await this.waitForTestMergeCommit(5, github.context.issue);
       if (!pull.data.mergeable)
         return core.info("Skipping as the PR is not mergable");
 
       const pulls = await this.octokit.pulls.list({
-        owner,
-        repo,
+        ...github.context.repo,
         base: pull.data.base.ref,
         direction: "asc"
       });
@@ -85,9 +83,7 @@ class Conflibot {
         )
         .join("\n")}`;
       this.octokit.issues.createComment({
-        owner,
-        repo,
-        issue_number: number,
+        ...github.context.issue,
         body
       });
     } catch (error) {
@@ -106,25 +102,22 @@ class Conflibot {
 
   private async waitForTestMergeCommit(
     times: number,
-    owner: string,
-    repo: string,
-    number: number
+    pr: {
+      owner: string;
+      repo: string;
+      number: number;
+    }
   ): Promise<Octokit.Response<Octokit.PullsGetResponse>> {
-    return this.octokit.pulls
-      .get({ owner, repo, pull_number: number })
-      .then(result => {
-        if (result.data.mergeable !== null) return result;
-        if (times == 1) throw "Timed out while waiting for a test merge commit";
-        return new Promise(resolve =>
-          setTimeout(
-            () =>
-              resolve(
-                this.waitForTestMergeCommit(times - 1, owner, repo, number)
-              ),
-            1000
-          )
-        );
-      });
+    return this.octokit.pulls.get(pr).then(result => {
+      if (result.data.mergeable !== null) return result;
+      if (times == 1) throw "Timed out while waiting for a test merge commit";
+      return new Promise(resolve =>
+        setTimeout(
+          () => resolve(this.waitForTestMergeCommit(times - 1, pr)),
+          1000
+        )
+      );
+    });
   }
 }
 
