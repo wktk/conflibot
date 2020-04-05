@@ -166,8 +166,7 @@ class Conflibot {
         .join("\n");
 
       const sum = conflicts.map((c) => c[1].length).reduce((p, c) => p + c);
-      const files = conflicts.length;
-      const summary = `Found ${sum} potential conflict(s) in ${files} file(s)!`;
+      const summary = `Found ${sum} potential conflict(s) in ${conflicts.length} other PR(s)!`;
       this.setStatus("neutral", { title: summary, summary, text });
     } catch (error) {
       this.exit("failure", JSON.stringify(error), "Error!");
