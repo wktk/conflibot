@@ -140,16 +140,16 @@ class Conflibot {
       }
 
       if (conflicts.length == 0)
-        return this.exit("success", "No conflicts found!");
+        return this.exit("success", "No potential conflicts found!");
 
-      const text = `Found some potential conflicts:\n${conflicts
+      const text = conflicts
         .map(
           conflict =>
             `- #${conflict[0].number}\n${conflict[1]
               .map(file => `  - ${file}`)
               .join("\n")}`
         )
-        .join("\n")}`;
+        .join("\n");
 
       const sum = conflicts.map(c => c[1].length).reduce((p, c) => p + c);
       const files = conflicts.length;
