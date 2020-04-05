@@ -1,7 +1,5 @@
 # conflibot
 
-:warning: Development in progress -- interfaces and behavior may change until v1 gets released.
-
 Check and warn if a Pull Request will conflict with another Pull Request when they get merged.
 
 ## Configuration
@@ -16,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Warn potential conflicts
-        uses: wktk/conflibot@v0.3.0
+        uses: wktk/conflibot@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           exclude: |
