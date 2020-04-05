@@ -2,9 +2,7 @@
 
 :warning: Development in progress -- interfaces and behavior may change until v1 gets released.
 
-Post a warning if a Pull Request will conflict with another Pull Request when they get merged.
-
-![](./misc/screenshot.png)
+Check and warn if a Pull Request will conflict with another Pull Request when they get merged.
 
 ## Configuration
 
@@ -18,7 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Post conflict warnings
-        uses: wktk/conflibot@master
+        uses: wktk/conflibot@v0.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+## Screenshots
+
+![](./misc/checks.png)
+![](./misc/details.png)

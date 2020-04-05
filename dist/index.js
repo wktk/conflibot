@@ -4244,86 +4244,110 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const github = __importStar(__webpack_require__(469));
 const child_process_1 = __webpack_require__(129);
-const system = command => new Promise((resolve, reject) => {
-    child_process_1.exec(command, (error, stdout, stderr) => {
-        error ? reject([error, stdout, stderr]) : resolve([stdout, stderr]);
-    });
-});
-const token = core.getInput("github-token", { required: true });
-const octokit = new github.GitHub(token);
-function waitForTestMergeCommit(times, owner, repo, number) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return octokit.pulls
-            .get({ owner, repo, pull_number: number })
-            .then(result => {
-            if (result.data.mergeable !== null)
-                return result;
-            if (times == 1)
-                throw "Timed out while waiting for a test merge commit";
-            return new Promise(resolve => setTimeout(() => resolve(waitForTestMergeCommit(times - 1, owner, repo, number)), 1000));
-        });
-    });
-}
-function run() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const { owner, repo, number } = github.context.issue;
-            const pull = yield waitForTestMergeCommit(5, owner, repo, number);
-            if (!pull.data.mergeable)
-                return core.info("Skipping as the PR is not mergable");
-            const pulls = yield octokit.pulls.list({
-                owner,
-                repo,
-                base: pull.data.base.ref,
-                direction: "asc"
-            });
-            if (pulls.data.length <= 1)
-                return core.info("no pulls found.");
-            // actions/checkout@v2 is optimized to fetch a single commit by default
-            const isShallow = (yield system("git rev-parse --is-shallow-repository"))[0].startsWith("true");
-            if (isShallow)
-                yield system("git fetch --prune --unshallow");
-            // actions/checkout@v2 checks out a merge commit by default
-            yield system(`git checkout ${pull.data.head.ref}`);
-            core.info(`First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`);
-            yield system(`git merge origin/${pull.data.base.ref} --no-edit`);
-            const conflicts = [];
-            for (const target of pulls.data) {
-                if (pull.data.head.sha === target.head.sha) {
-                    core.info(`Skipping #${target.number} (${target.head.ref})`);
-                    continue;
-                }
-                core.info(`Checking #${target.number} (${target.head.ref})`);
-                yield system(`git format-patch origin/${pull.data.base.ref}..origin/${target.head.ref} --stdout | git apply --check`).catch((reason) => {
-                    // Patch application error expected.  Throw an error if not.
-                    if (!reason.toString().includes("patch does not apply")) {
-                        throw reason[2];
-                    }
-                    const patchFails = [];
-                    for (const match of reason[2].matchAll(/error: patch failed: (.*)/g)) {
-                        patchFails.push(match[1]);
-                    }
-                    const files = [...new Set(patchFails)]; // unique
-                    conflicts.push([target, files]);
-                    core.info(`#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`);
-                });
+class Conflibot {
+    constructor() {
+        this.token = core.getInput("github-token", { required: true });
+        this.octokit = new github.GitHub(this.token);
+    }
+    setStatus(conclusion = undefined, output = undefined) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const refs = yield this.octokit.checks.listForRef(Object.assign(Object.assign({}, github.context.repo), { ref: github.context.ref }));
+            const current = refs.data.check_runs.find(check => check.name == "details");
+            const params = Object.assign(Object.assign({}, github.context.repo), { name: "details", head_sha: github.context.payload
+                    .pull_request.head.sha, status: (conclusion ? "completed" : "in_progress"), conclusion,
+                output });
+            if (current) {
+                return this.octokit.checks.update(Object.assign(Object.assign({}, params), { check_run_id: current.id }));
             }
-            if (conflicts.length == 0)
-                return core.info("No conflicts found!");
-            const body = `Found some potential conflicts:\n${conflicts
-                .map(conflict => `- #${conflict[0].number}\n${conflict[1]
-                .map(file => `  - ${file}`)
-                .join("\n")}`)
-                .join("\n")}`;
-            octokit.issues.createComment({ owner, repo, issue_number: number, body });
-        }
-        catch (error) {
-            console.error(error);
-            core.setFailed("error!");
-        }
-    });
+            else {
+                return this.octokit.checks.create(params);
+            }
+        });
+    }
+    exit(conclusion, reason, summary) {
+        core.info(reason);
+        this.setStatus(conclusion, {
+            title: reason,
+            summary: summary || reason,
+            text: reason
+        });
+    }
+    run() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                this.setStatus();
+                const pull = yield this.waitForTestMergeCommit(5, github.context.issue);
+                if (!pull.data.mergeable)
+                    return this.exit("neutral", "PR is not mergable");
+                const pulls = yield this.octokit.pulls.list(Object.assign(Object.assign({}, github.context.repo), { base: pull.data.base.ref, direction: "asc" }));
+                if (pulls.data.length <= 1)
+                    return this.exit("success", "No other pulls found.");
+                // actions/checkout@v2 is optimized to fetch a single commit by default
+                const isShallow = (yield this.system("git rev-parse --is-shallow-repository"))[0].startsWith("true");
+                if (isShallow)
+                    yield this.system("git fetch --prune --unshallow");
+                // actions/checkout@v2 checks out a merge commit by default
+                yield this.system(`git checkout ${pull.data.head.ref}`);
+                core.info(`First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`);
+                yield this.system(`git merge origin/${pull.data.base.ref} --no-edit`);
+                const conflicts = [];
+                for (const target of pulls.data) {
+                    if (pull.data.head.sha === target.head.sha) {
+                        core.info(`Skipping #${target.number} (${target.head.ref})`);
+                        continue;
+                    }
+                    core.info(`Checking #${target.number} (${target.head.ref})`);
+                    yield this.system(`git format-patch origin/${pull.data.base.ref}..origin/${target.head.ref} --stdout | git apply --check`).catch((reason) => {
+                        // Patch application error expected.  Throw an error if not.
+                        if (!reason.toString().includes("patch does not apply")) {
+                            throw reason[2];
+                        }
+                        const patchFails = [];
+                        for (const match of reason[2].matchAll(/error: patch failed: (.*)/g)) {
+                            patchFails.push(match[1]);
+                        }
+                        const files = [...new Set(patchFails)]; // unique
+                        conflicts.push([target, files]);
+                        core.info(`#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`);
+                    });
+                }
+                if (conflicts.length == 0)
+                    return this.exit("success", "No conflicts found!");
+                const text = `Found some potential conflicts:\n${conflicts
+                    .map(conflict => `- #${conflict[0].number}\n${conflict[1]
+                    .map(file => `  - ${file}`)
+                    .join("\n")}`)
+                    .join("\n")}`;
+                const sum = conflicts.map(c => c[1].length).reduce((p, c) => p + c);
+                const files = conflicts.length;
+                const summary = `Found ${sum} potential conflict(s) in ${files} file(s)!`;
+                this.setStatus("neutral", { title: summary, summary, text });
+            }
+            catch (error) {
+                this.exit("failure", JSON.stringify(error), "Error!");
+            }
+        });
+    }
+    system(command) {
+        return new Promise((resolve, reject) => {
+            child_process_1.exec(command, (error, stdout, stderr) => {
+                error ? reject([error, stdout, stderr]) : resolve([stdout, stderr]);
+            });
+        });
+    }
+    waitForTestMergeCommit(times, pr) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.octokit.pulls.get(pr).then(result => {
+                if (result.data.mergeable !== null)
+                    return result;
+                if (times == 1)
+                    throw "Timed out while waiting for a test merge commit";
+                return new Promise(resolve => setTimeout(() => resolve(this.waitForTestMergeCommit(times - 1, pr)), 1000));
+            });
+        });
+    }
 }
-run();
+new Conflibot().run();
 
 
 /***/ }),
