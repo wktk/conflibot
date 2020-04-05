@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Post conflict warnings
+      - name: Warn potential conflicts
         uses: wktk/conflibot@v0.3.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
