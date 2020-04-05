@@ -1,5 +1,5 @@
 name: conflibot
-description: Post a warning if a Pull Request will conflict with another Pull Request when they get merged.
+description: Check and warn if a Pull Request will conflict with another Pull Request when they get merged.
 author: "@wktk"
 inputs:
   github-token:
