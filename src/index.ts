@@ -39,12 +39,11 @@ class Conflibot {
     const params = {
       ...github.context.repo,
       name: "details",
-      head_sha: (
-        github.context.payload.pull_request as Octokit.PullsGetResponse
-      ).head.sha,
-      status:
-        (conclusion ? "completed" : "in_progress") as
-        "completed" | "in_progress",
+      head_sha: (github.context.payload
+        .pull_request as Octokit.PullsGetResponse).head.sha,
+      status: (conclusion ? "completed" : "in_progress") as
+        | "completed"
+        | "in_progress",
       conclusion,
       output,
     };
