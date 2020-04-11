@@ -35,6 +35,8 @@ class Conflibot {
     const current = refs.data.check_runs.find(
       (check) => check.name == "conflibot"
     );
+    core.debug(`checks: ${JSON.stringify(refs.data)}`);
+    core.debug(`current check: ${JSON.stringify(current)}`);
 
     const params = {
       ...github.context.repo,
