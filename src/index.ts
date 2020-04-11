@@ -30,7 +30,8 @@ class Conflibot {
   > {
     const refs = await this.octokit.checks.listForRef({
       ...github.context.repo,
-      ref: github.context.ref,
+      ref: (github.context.payload.pull_request as Octokit.PullsGetResponse)
+        .head.sha,
     });
     const current = refs.data.check_runs.find(
       (check) => check.name == "conflibot"

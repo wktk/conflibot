@@ -5580,7 +5580,8 @@ class Conflibot {
     }
     setStatus(conclusion = undefined, output = undefined) {
         return __awaiter(this, void 0, void 0, function* () {
-            const refs = yield this.octokit.checks.listForRef(Object.assign(Object.assign({}, github.context.repo), { ref: github.context.ref }));
+            const refs = yield this.octokit.checks.listForRef(Object.assign(Object.assign({}, github.context.repo), { ref: github.context.payload.pull_request
+                    .head.sha }));
             const current = refs.data.check_runs.find((check) => check.name == "conflibot");
             core.debug(`checks: ${JSON.stringify(refs.data)}`);
             core.debug(`current check: ${JSON.stringify(current)}`);
