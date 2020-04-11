@@ -34,14 +34,14 @@ class Conflibot {
         .head.sha,
     });
     const current = refs.data.check_runs.find(
-      (check) => check.name == "conflibot"
+      (check) => check.name == "conflibot/details"
     );
     core.debug(`checks: ${JSON.stringify(refs.data)}`);
     core.debug(`current check: ${JSON.stringify(current)}`);
 
     const params = {
       ...github.context.repo,
-      name: "conflibot",
+      name: "conflibot/details",
       head_sha: (github.context.payload
         .pull_request as Octokit.PullsGetResponse).head.sha,
       status: (conclusion ? "completed" : "in_progress") as
