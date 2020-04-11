@@ -30,15 +30,18 @@ class Conflibot {
   > {
     const refs = await this.octokit.checks.listForRef({
       ...github.context.repo,
-      ref: github.context.ref,
+      ref: (github.context.payload.pull_request as Octokit.PullsGetResponse)
+        .head.sha,
     });
     const current = refs.data.check_runs.find(
-      (check) => check.name == "details"
+      (check) => check.name == "conflibot/details"
     );
+    core.debug(`checks: ${JSON.stringify(refs.data)}`);
+    core.debug(`current check: ${JSON.stringify(current)}`);
 
     const params = {
       ...github.context.repo,
-      name: "details",
+      name: "conflibot/details",
       head_sha: (github.context.payload
         .pull_request as Octokit.PullsGetResponse).head.sha,
       status: (conclusion ? "completed" : "in_progress") as
