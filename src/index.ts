@@ -101,7 +101,9 @@ class Conflibot {
       core.info(
         `First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`
       );
-      await this.system(`git merge origin/${pull.data.base.ref} --no-edit`);
+      await this.system(
+        `git -c user.name=conflibot -c user.email=dummy@conflibot.invalid merge origin/${pull.data.base.ref} --no-edit`
+      );
 
       const conflicts: Array<[
         Octokit.PullsListResponseItem,

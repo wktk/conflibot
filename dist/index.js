@@ -5621,7 +5621,7 @@ class Conflibot {
                 // actions/checkout@v2 checks out a merge commit by default
                 yield this.system(`git checkout ${pull.data.head.ref}`);
                 core.info(`First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`);
-                yield this.system(`git merge origin/${pull.data.base.ref} --no-edit`);
+                yield this.system(`git -c user.name=conflibot -c user.email=dummy@conflibot.invalid merge origin/${pull.data.base.ref} --no-edit`);
                 const conflicts = [];
                 for (const target of pulls.data) {
                     if (pull.data.head.sha === target.head.sha) {
