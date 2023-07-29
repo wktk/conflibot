@@ -8,7 +8,7 @@ inputs:
   exclude:
     description: Ignored path patterns in newline-separated glob format
 runs:
-  using: 'node12'
+  using: 'node16'
   main: 'dist/index.js'
 branding:
   icon: git-pull-request
