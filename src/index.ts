@@ -22,7 +22,7 @@ class Conflibot {
     conclusion: "success" | "failure" | "neutral" | undefined = undefined,
     output:
       | { title: string; summary: string; text?: string }
-      | undefined = undefined
+      | undefined = undefined,
   ): Promise<
     Octokit.Response<
       Octokit.ChecksUpdateResponse | Octokit.ChecksCreateResponse
@@ -34,7 +34,7 @@ class Conflibot {
         .head.sha,
     });
     const current = refs.data.check_runs.find(
-      (check) => check.name == "conflibot/details"
+      (check) => check.name == "conflibot/details",
     );
     core.debug(`checks: ${JSON.stringify(refs.data)}`);
     core.debug(`current check: ${JSON.stringify(current)}`);
@@ -64,7 +64,7 @@ class Conflibot {
   exit(
     conclusion: "success" | "failure" | "neutral",
     reason: string,
-    summary?: string
+    summary?: string,
   ): void {
     core.info(reason);
     this.setStatus(conclusion, {
@@ -100,10 +100,10 @@ class Conflibot {
       await this.system(`git checkout ${pull.data.head.ref}`);
 
       core.info(
-        `First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`
+        `First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`,
       );
       await this.system(
-        `git -c user.name=conflibot -c user.email=dummy@conflibot.invalid merge origin/${pull.data.base.ref} --no-edit`
+        `git -c user.name=conflibot -c user.email=dummy@conflibot.invalid merge origin/${pull.data.base.ref} --no-edit`,
       );
 
       const conflicts: Array<[Octokit.PullsListResponseItem, Array<string>]> =
@@ -116,7 +116,7 @@ class Conflibot {
         core.info(`Checking #${target.number} (${target.head.ref})`);
 
         await this.system(
-          `git format-patch origin/${pull.data.base.ref}..origin/${target.head.ref} --stdout | git apply --check`
+          `git format-patch origin/${pull.data.base.ref}..origin/${target.head.ref} --stdout | git apply --check`,
         ).catch((reason: [string, string, string]) => {
           // Patch application error expected.  Throw an error if not.
           if (!reason.toString().includes("patch does not apply")) {
@@ -125,7 +125,7 @@ class Conflibot {
 
           const patchFails: Array<string> = [];
           for (const match of reason[2].matchAll(
-            /error: patch failed: ((.*):\d+)/g
+            /error: patch failed: ((.*):\d+)/g,
           )) {
             if (multimatch(match[2], this.excludedPaths).length > 0) {
               core.info(`Ignoring ${match[2]}`);
@@ -139,7 +139,7 @@ class Conflibot {
           if (files.length > 0) {
             conflicts.push([target, files]);
             core.info(
-              `#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`
+              `#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`,
             );
           }
         });
@@ -191,7 +191,7 @@ class Conflibot {
       owner: string;
       repo: string;
       number: number;
-    }
+    },
   ): Promise<Octokit.Response<Octokit.PullsGetResponse>> {
     return this.octokit.pulls.get(pr).then((result) => {
       if (result.data.mergeable !== null) return result;
@@ -199,8 +199,8 @@ class Conflibot {
       return new Promise((resolve) =>
         setTimeout(
           () => resolve(this.waitForTestMergeCommit(times - 1, pr)),
-          1000
-        )
+          1000,
+        ),
       );
     });
   }
