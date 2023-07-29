@@ -31184,8 +31184,7 @@ class Conflibot {
             const current = refs.data.check_runs.find((check) => check.name == "conflibot/details");
             core.debug(`checks: ${JSON.stringify(refs.data)}`);
             core.debug(`current check: ${JSON.stringify(current)}`);
-            const params = Object.assign(Object.assign({}, github.context.repo), { name: "conflibot/details", head_sha: github.context.payload
-                    .pull_request.head.sha, status: (conclusion ? "completed" : "in_progress"), conclusion,
+            const params = Object.assign(Object.assign({}, github.context.repo), { name: "conflibot/details", head_sha: github.context.payload.pull_request.head.sha, status: (conclusion ? "completed" : "in_progress"), conclusion,
                 output });
             if (current) {
                 return this.octokit.checks.update(Object.assign(Object.assign({}, params), { check_run_id: current.id }));

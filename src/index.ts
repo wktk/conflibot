@@ -42,8 +42,9 @@ class Conflibot {
     const params = {
       ...github.context.repo,
       name: "conflibot/details",
-      head_sha: (github.context.payload
-        .pull_request as Octokit.PullsGetResponse).head.sha,
+      head_sha: (
+        github.context.payload.pull_request as Octokit.PullsGetResponse
+      ).head.sha,
       status: (conclusion ? "completed" : "in_progress") as
         | "completed"
         | "in_progress",
@@ -105,10 +106,8 @@ class Conflibot {
         `git -c user.name=conflibot -c user.email=dummy@conflibot.invalid merge origin/${pull.data.base.ref} --no-edit`
       );
 
-      const conflicts: Array<[
-        Octokit.PullsListResponseItem,
-        Array<string>
-      ]> = [];
+      const conflicts: Array<[Octokit.PullsListResponseItem, Array<string>]> =
+        [];
       for (const target of pulls.data) {
         if (pull.data.head.sha === target.head.sha) {
           core.info(`Skipping #${target.number} (${target.head.ref})`);
