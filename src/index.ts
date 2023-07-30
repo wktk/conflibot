@@ -25,12 +25,14 @@ class Conflibot {
       | { title: string; summary: string; text?: string }
       | undefined = undefined,
   ): Promise<
-    ReturnType<Octokit["checks"]["create"] | Octokit["checks"]["update"]>
+    ReturnType<
+      Octokit["rest"]["checks"]["create"] | Octokit["rest"]["checks"]["update"]
+    >
   > {
     const pr = github.context.payload.pull_request;
     if (!pr) throw new Error("The pull request is undefined.");
 
-    const refs = await this.octokit.checks.listForRef({
+    const refs = await this.octokit.rest.checks.listForRef({
       ...github.context.repo,
       ref: pr.head.sha,
     });
@@ -51,12 +53,12 @@ class Conflibot {
       output,
     };
     if (current) {
-      return this.octokit.checks.update({
+      return this.octokit.rest.checks.update({
         ...params,
         check_run_id: current.id,
       });
     } else {
-      return this.octokit.checks.create(params);
+      return this.octokit.rest.checks.create(params);
     }
   }
 
@@ -85,7 +87,7 @@ class Conflibot {
       if (!pull.data.mergeable)
         return this.exit("neutral", "PR is not mergable");
 
-      const pulls = await this.octokit.pulls.list({
+      const pulls = await this.octokit.rest.pulls.list({
         ...github.context.repo,
         base: pull.data.base.ref,
         direction: "asc",
@@ -109,7 +111,9 @@ class Conflibot {
         `git -c user.name=conflibot -c user.email=dummy@conflibot.invalid merge origin/${pull.data.base.ref} --no-edit`,
       );
 
-      type PullsListResponse = Awaited<ReturnType<Octokit["pulls"]["list"]>>;
+      type PullsListResponse = Awaited<
+        ReturnType<Octokit["rest"]["pulls"]["list"]>
+      >;
       const conflicts: Array<[PullsListResponse["data"][0], Array<string>]> =
         [];
       for (const target of pulls.data) {
@@ -196,8 +200,8 @@ class Conflibot {
       repo: string;
       pull_number: number;
     },
-  ): ReturnType<Octokit["pulls"]["get"]> {
-    return this.octokit.pulls.get(pr).then((result) => {
+  ): ReturnType<Octokit["rest"]["pulls"]["get"]> {
+    return this.octokit.rest.pulls.get(pr).then((result) => {
       if (result.data.mergeable !== null) return result;
       if (times == 1) throw "Timed out while waiting for a test merge commit";
       return new Promise((resolve) =>
