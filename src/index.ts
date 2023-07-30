@@ -1,16 +1,17 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { Octokit } from "@octokit/rest";
 import { exec } from "child_process";
 import multimatch from "multimatch";
 
+type Octokit = ReturnType<typeof github.getOctokit>;
+
 class Conflibot {
   token: string;
-  octokit: github.GitHub;
+  octokit: Octokit;
   excludedPaths: string[];
   constructor() {
     this.token = core.getInput("github-token", { required: true });
-    this.octokit = new github.GitHub(this.token);
+    this.octokit = github.getOctokit(this.token);
     this.excludedPaths = core
       .getInput("exclude")
       .split("\n")
@@ -24,14 +25,14 @@ class Conflibot {
       | { title: string; summary: string; text?: string }
       | undefined = undefined,
   ): Promise<
-    Octokit.Response<
-      Octokit.ChecksUpdateResponse | Octokit.ChecksCreateResponse
-    >
+    ReturnType<Octokit["checks"]["create"] | Octokit["checks"]["update"]>
   > {
+    const pr = github.context.payload.pull_request;
+    if (!pr) throw new Error("The pull request is undefined.");
+
     const refs = await this.octokit.checks.listForRef({
       ...github.context.repo,
-      ref: (github.context.payload.pull_request as Octokit.PullsGetResponse)
-        .head.sha,
+      ref: pr.head.sha,
     });
     const current = refs.data.check_runs.find(
       (check) => check.name == "conflibot/details",
@@ -42,9 +43,7 @@ class Conflibot {
     const params = {
       ...github.context.repo,
       name: "conflibot/details",
-      head_sha: (
-        github.context.payload.pull_request as Octokit.PullsGetResponse
-      ).head.sha,
+      head_sha: pr.head.sha,
       status: (conclusion ? "completed" : "in_progress") as
         | "completed"
         | "in_progress",
@@ -78,7 +77,11 @@ class Conflibot {
     try {
       this.setStatus();
 
-      const pull = await this.waitForTestMergeCommit(5, github.context.issue);
+      const pull = await this.waitForTestMergeCommit(5, {
+        owner: github.context.issue.owner,
+        repo: github.context.issue.repo,
+        pull_number: github.context.issue.number,
+      });
       if (!pull.data.mergeable)
         return this.exit("neutral", "PR is not mergable");
 
@@ -106,7 +109,8 @@ class Conflibot {
         `git -c user.name=conflibot -c user.email=dummy@conflibot.invalid merge origin/${pull.data.base.ref} --no-edit`,
       );
 
-      const conflicts: Array<[Octokit.PullsListResponseItem, Array<string>]> =
+      type PullsListResponse = Awaited<ReturnType<Octokit["pulls"]["list"]>>;
+      const conflicts: Array<[PullsListResponse["data"][0], Array<string>]> =
         [];
       for (const target of pulls.data) {
         if (pull.data.head.sha === target.head.sha) {
@@ -190,9 +194,9 @@ class Conflibot {
     pr: {
       owner: string;
       repo: string;
-      number: number;
+      pull_number: number;
     },
-  ): Promise<Octokit.Response<Octokit.PullsGetResponse>> {
+  ): ReturnType<Octokit["pulls"]["get"]> {
     return this.octokit.pulls.get(pr).then((result) => {
       if (result.data.mergeable !== null) return result;
       if (times == 1) throw "Timed out while waiting for a test merge commit";
