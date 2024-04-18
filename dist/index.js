@@ -10951,8 +10951,9 @@ class Conflibot {
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
+            const remotes = ["origin"];
             try {
-                this.setStatus();
+                yield this.setStatus();
                 const pull = yield this.waitForTestMergeCommit(5, {
                     owner: github.context.issue.owner,
                     repo: github.context.issue.repo,
@@ -10978,7 +10979,12 @@ class Conflibot {
                         continue;
                     }
                     core.info(`Checking #${target.number} (${target.head.ref})`);
-                    yield this.system(`git format-patch origin/${pull.data.base.ref}..origin/${target.head.ref} --stdout | git apply --check`).catch((reason) => {
+                    if (!remotes.includes(target.head.repo.owner.login)) {
+                        remotes.push(target.head.repo.owner.login);
+                        yield this.system(`git remote add ${target.head.repo.owner.login} https://github.com/${target.head.repo.full_name}`);
+                        yield this.system(`git fetch ${target.head.repo.owner.login}`);
+                    }
+                    yield this.system(`git format-patch origin/${pull.data.base.ref}.. ${target.head.repo.owner.login}/${target.head.ref} --stdout | git apply --check`).catch((reason) => {
                         // Patch application error expected.  Throw an error if not.
                         if (!reason.toString().includes("patch does not apply")) {
                             throw reason[2];
@@ -11021,7 +11027,7 @@ class Conflibot {
                     .join("\n");
                 const sum = conflicts.map((c) => c[1].length).reduce((p, c) => p + c);
                 const summary = `Found ${sum} potential conflict(s) in ${conflicts.length} other PR(s)!`;
-                this.setStatus("neutral", { title: summary, summary, text });
+                yield this.setStatus("neutral", { title: summary, summary, text });
             }
             catch (error) {
                 this.exit("failure", JSON.stringify(error), "Error!");
