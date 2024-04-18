@@ -76,8 +76,9 @@ class Conflibot {
   }
 
   async run(): Promise<void> {
+    const remotes = ["origin"];
     try {
-      this.setStatus();
+      await this.setStatus();
 
       const pull = await this.waitForTestMergeCommit(5, {
         owner: github.context.issue.owner,
@@ -122,9 +123,13 @@ class Conflibot {
           continue;
         }
         core.info(`Checking #${target.number} (${target.head.ref})`);
-
+        if (!remotes.includes(target.head.repo.owner.login)) {
+          await this.system(
+            `git remote add ${target.head.repo.owner.login} ${target.head.repo.url}`,
+          );
+        }
         await this.system(
-          `git format-patch origin/${pull.data.base.ref}..origin/${target.head.ref} --stdout | git apply --check`,
+          `git format-patch origin/${pull.data.base.ref}.. ${target.head.repo.owner.login}/${target.head.ref} --stdout | git apply --check`,
         ).catch((reason: [string, string, string]) => {
           // Patch application error expected.  Throw an error if not.
           if (!reason.toString().includes("patch does not apply")) {
@@ -179,7 +184,7 @@ class Conflibot {
 
       const sum = conflicts.map((c) => c[1].length).reduce((p, c) => p + c);
       const summary = `Found ${sum} potential conflict(s) in ${conflicts.length} other PR(s)!`;
-      this.setStatus("neutral", { title: summary, summary, text });
+      await this.setStatus("neutral", { title: summary, summary, text });
     } catch (error) {
       this.exit("failure", JSON.stringify(error), "Error!");
     }

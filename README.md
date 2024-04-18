@@ -6,7 +6,7 @@ Check and warn if a Pull Request will conflict with another Pull Request when th
 
 ```yaml
 name: conflibot
-on: pull_request_target
+on: pull_request
 
 jobs:
   conflibot:
