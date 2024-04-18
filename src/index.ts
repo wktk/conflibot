@@ -125,7 +125,7 @@ class Conflibot {
         core.info(`Checking #${target.number} (${target.head.ref})`);
         if (!remotes.includes(target.head.repo.owner.login)) {
           await this.system(
-            `git remote add ${target.head.repo.owner.login} ${target.head.repo.url}`,
+            `git remote add ${target.head.repo.owner.login} https://github.com/${target.head.repo.full_name}`,
           );
           await this.system(`git fetch ${target.head.repo.owner.login}`);
         }

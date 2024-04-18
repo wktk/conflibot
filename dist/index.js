@@ -10980,7 +10980,7 @@ class Conflibot {
                     }
                     core.info(`Checking #${target.number} (${target.head.ref})`);
                     if (!remotes.includes(target.head.repo.owner.login)) {
-                        yield this.system(`git remote add ${target.head.repo.owner.login} ${target.head.repo.url}`);
+                        yield this.system(`git remote add ${target.head.repo.owner.login} https://github.com/${target.head.repo.full_name}`);
                         yield this.system(`git fetch ${target.head.repo.owner.login}`);
                     }
                     yield this.system(`git format-patch origin/${pull.data.base.ref}.. ${target.head.repo.owner.login}/${target.head.ref} --stdout | git apply --check`).catch((reason) => {
