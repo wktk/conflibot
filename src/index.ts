@@ -127,6 +127,9 @@ class Conflibot {
           await this.system(
             `git remote add ${target.head.repo.owner.login} ${target.head.repo.url}`,
           );
+          await this.system(
+            `git fetch ${target.head.repo.owner.login} --all`,
+          );
         }
         await this.system(
           `git format-patch origin/${pull.data.base.ref}.. ${target.head.repo.owner.login}/${target.head.ref} --stdout | git apply --check`,
