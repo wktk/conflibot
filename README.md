@@ -19,7 +19,7 @@ jobs:
   conflibot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Warn about potential conflicts
         uses: wktk/conflibot@v1
         with:
