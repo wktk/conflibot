@@ -16,7 +16,7 @@ jobs:
           node-version: 24
           cache: yarn
       - name: Install packages
-        run: yarn --frozen-lockfile --ignore-optional
+        run: yarn --frozen-lockfile
       - run: yarn lint
       - run: yarn format:check
       - run: yarn typecheck
