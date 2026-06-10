@@ -1,8 +1,8 @@
 # conflibot
 
-Check and warn if a Pull Request will conflict with another Pull Request when they get merged.
+Warn in advance when merging a pull request will cause conflicts in other open pull requests.
 
-For every open PR that targets the same base branch, conflibot checks whether its changes still apply cleanly once the current PR is merged, and reports the result as a `conflibot/details` check run with links to the conflicting lines.
+For every other open PR with the same base branch, conflibot checks whether it would still merge cleanly after the current PR is merged, and reports the result as a `conflibot/details` check run with links to the conflicting files.
 
 ## Configuration
 
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Warn potential conflicts
+      - name: Warn about potential conflicts
         uses: wktk/conflibot@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -37,9 +37,9 @@ Conflict detection uses `git merge-tree`, so the runner needs git 2.38 or later 
 
 | Name | Default | Description |
 | ---- | ------- | ----------- |
-| `github-token` | (required) | GitHub API token with write access to checks |
-| `exclude` | | Ignored path patterns in **newline-separated** glob format |
-| `fail-on-conflict` | `false` | Report the check as `failure` and fail the step when potential conflicts are found, instead of a `neutral` check |
+| `github-token` | (required) | GitHub API token with permission to write check runs (usually `secrets.GITHUB_TOKEN`) |
+| `exclude` | | Paths to exclude from conflict detection, as **newline-separated** glob patterns |
+| `fail-on-conflict` | `false` | Report the check as `failure` and fail the step when potential conflicts are found, instead of reporting a `neutral` check |
 | `max-retries` | `5` | How many times to poll for GitHub's test merge commit before giving up |
 | `retry-interval` | `1` | Seconds to wait between test merge commit polls |
 
@@ -49,10 +49,10 @@ Conflict detection uses `git merge-tree`, so the runner needs git 2.38 or later 
 | ---- | ----------- |
 | `conflicts` | Potential conflicts as a JSON array of `{number, headRef, headSha, files}` objects, where `files` lists the conflicting file paths; `[]` when none are found |
 
-The output can feed follow-up steps, for example posting a comment:
+Follow-up steps can read the output, for example to post a comment or notify a chat tool:
 
 ```yaml
-      - name: Warn potential conflicts
+      - name: Warn about potential conflicts
         id: conflibot
         uses: wktk/conflibot@v1
         with:
