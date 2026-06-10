@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Warn about potential conflicts
-        uses: wktk/conflibot@v1
+        uses: wktk/conflibot@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           exclude: |
@@ -54,7 +54,7 @@ Follow-up steps can read the output, for example to post a comment or notify a c
 ```yaml
       - name: Warn about potential conflicts
         id: conflibot
-        uses: wktk/conflibot@v1
+        uses: wktk/conflibot@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Show conflicts
@@ -68,6 +68,30 @@ Follow-up steps can read the output, for example to post a comment or notify a c
 2. List every other open PR with the same base branch (paginated, so large repositories are fully covered).
 3. Fetch `refs/pull/<n>/head` for all of them (works for forks too) and the current PR's test merge commit.
 4. For each other PR, run `git merge-tree --write-tree` between the test merge commit and that PR's head — an in-memory merge using the same strategy as a real `git merge`, without touching the working tree. Files that would conflict are reported.
+
+## Upgrading from v1
+
+v2 changes how conflicts are detected and what the runner needs:
+
+- **Runner requirements**: a runner with node24 support and git 2.38
+  or later. All current GitHub-hosted runners qualify; only older
+  self-hosted runners may need an upgrade.
+- **More accurate detection**: conflicts are found with an in-memory
+  `git merge-tree` (the same merge a real `git merge` performs)
+  instead of testing patch application. Changes that merely touch
+  nearby lines are no longer reported as false conflicts, and PRs
+  from forks are now checked correctly.
+- **Report format**: conflicts are reported per file and link to the
+  file in the other PR; v1 linked to individual line numbers, which
+  the patch-based detection produced but a real merge does not.
+- **No working tree changes**: v1 checked out the PR branch and
+  created a merge commit in the job's working copy; v2 leaves the
+  checkout untouched, so follow-up steps see the repository exactly
+  as `actions/checkout` left it.
+- **New options**: `fail-on-conflict`, `max-retries`, and
+  `retry-interval` inputs, and a `conflicts` JSON output for
+  follow-up steps. Existing workflows keep working without changes
+  (other than pointing at `@v2`).
 
 ## Development
 
