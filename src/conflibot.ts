@@ -63,13 +63,13 @@ export class Conflibot {
     }
   }
 
-  exit(
+  async exit(
     conclusion: "success" | "failure" | "neutral",
     reason: string,
     summary?: string,
-  ): void {
+  ): Promise<void> {
     core.info(reason);
-    this.setStatus(conclusion, {
+    await this.setStatus(conclusion, {
       title: reason,
       summary: summary || reason,
       text: reason,
@@ -78,7 +78,7 @@ export class Conflibot {
 
   async run(): Promise<void> {
     try {
-      this.setStatus();
+      await this.setStatus();
 
       const pull = await this.waitForTestMergeCommit(5, {
         owner: github.context.issue.owner,
@@ -86,7 +86,7 @@ export class Conflibot {
         pull_number: github.context.issue.number,
       });
       if (!pull.data.mergeable)
-        return this.exit("neutral", "PR is not mergable");
+        return this.exit("neutral", "PR is not mergeable");
 
       const pulls = await this.octokit.paginate(this.octokit.rest.pulls.list, {
         ...github.context.repo,
@@ -149,9 +149,16 @@ export class Conflibot {
         return this.exit("success", "No potential conflicts found!");
 
       const report = buildConflictReport(conflicts, github.context.repo);
-      this.setStatus("neutral", report);
+      await this.setStatus("neutral", report);
     } catch (error) {
-      this.exit("failure", JSON.stringify(error), "Error!");
+      const detail =
+        error instanceof Error ? (error.stack ?? error.message) : String(error);
+      core.setFailed(detail);
+      await this.setStatus("failure", {
+        title: "conflibot failed unexpectedly",
+        summary: "conflibot failed unexpectedly",
+        text: detail,
+      }).catch((statusError) => core.error(String(statusError)));
     }
   }
 

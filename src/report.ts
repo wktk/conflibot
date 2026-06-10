@@ -23,7 +23,7 @@ export function buildConflictReport(
         `- #${conflict.number} ([${conflict.headRef}](${baseUrl}/tree/${conflict.headRef}))\n` +
         conflict.files
           .map((file) => {
-            const match = file.match(/^(.*):(\d)$/);
+            const match = file.match(/^(.*):(\d+)$/);
             if (!match) return `  - ${file}`;
             return `  - [${file}](${baseUrl}/blob/${conflict.headSha}/${match[1]}#L${match[2]})`;
           })

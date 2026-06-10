@@ -31990,7 +31990,7 @@ function setCommandEcho(enabled) {
  */
 function setFailed(message) {
     process.exitCode = ExitCode.Failure;
-    error(message);
+    core_error(message);
 }
 //-----------------------------------------------------------------------
 // Logging Commands
@@ -32013,8 +32013,8 @@ function core_debug(message) {
  * @param message error issue message. Errors will be converted to string via toString()
  * @param properties optional properties to add to the annotation.
  */
-function error(message, properties = {}) {
-    issueCommand('error', toCommandProperties(properties), message instanceof Error ? message.toString() : message);
+function core_error(message, properties = {}) {
+    command_issueCommand('error', utils_toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
 /**
  * Adds a warning issue
@@ -38938,7 +38938,7 @@ function buildConflictReport(conflicts, repo) {
         return (`- #${conflict.number} ([${conflict.headRef}](${baseUrl}/tree/${conflict.headRef}))\n` +
             conflict.files
                 .map((file) => {
-                const match = file.match(/^(.*):(\d)$/);
+                const match = file.match(/^(.*):(\d+)$/);
                 if (!match)
                     return `  - ${file}`;
                 return `  - [${file}](${baseUrl}/blob/${conflict.headSha}/${match[1]}#L${match[2]})`;
@@ -39000,9 +39000,9 @@ class Conflibot {
             return this.octokit.rest.checks.create(params);
         }
     }
-    exit(conclusion, reason, summary) {
+    async exit(conclusion, reason, summary) {
         info(reason);
-        this.setStatus(conclusion, {
+        await this.setStatus(conclusion, {
             title: reason,
             summary: summary || reason,
             text: reason,
@@ -39010,14 +39010,14 @@ class Conflibot {
     }
     async run() {
         try {
-            this.setStatus();
+            await this.setStatus();
             const pull = await this.waitForTestMergeCommit(5, {
                 owner: github_context.issue.owner,
                 repo: github_context.issue.repo,
                 pull_number: github_context.issue.number,
             });
             if (!pull.data.mergeable)
-                return this.exit("neutral", "PR is not mergable");
+                return this.exit("neutral", "PR is not mergeable");
             const pulls = await this.octokit.paginate(this.octokit.rest.pulls.list, {
                 ...github_context.repo,
                 base: pull.data.base.ref,
@@ -39061,10 +39061,16 @@ class Conflibot {
             if (conflicts.length == 0)
                 return this.exit("success", "No potential conflicts found!");
             const report = buildConflictReport(conflicts, github_context.repo);
-            this.setStatus("neutral", report);
+            await this.setStatus("neutral", report);
         }
         catch (error) {
-            this.exit("failure", JSON.stringify(error), "Error!");
+            const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+            setFailed(detail);
+            await this.setStatus("failure", {
+                title: "conflibot failed unexpectedly",
+                summary: "conflibot failed unexpectedly",
+                text: detail,
+            }).catch((statusError) => core_error(String(statusError)));
         }
     }
     system(command) {
@@ -39090,7 +39096,10 @@ class Conflibot {
 
 ;// CONCATENATED MODULE: ./src/index.ts
 
-new Conflibot().run();
+
+new Conflibot().run().catch((error) => {
+    setFailed(error instanceof Error ? error : String(error));
+});
 
 })();
 
