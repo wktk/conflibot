@@ -3,11 +3,11 @@
   "reviewers": ["wktk"],
   "packageRules": [
     {
-      "updateTypes": ["minor", "patch", "pin", "digest"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true
     }
   ],
   "extends": [
-    "config:base"
+    "config:recommended"
   ]
 }
