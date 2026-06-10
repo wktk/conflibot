@@ -188,7 +188,8 @@ class Conflibot {
   private system(command: string): Promise<[string, string]> {
     return new Promise((resolve, reject) => {
       exec(command, (error, stdout, stderr) => {
-        error ? reject([error, stdout, stderr]) : resolve([stdout, stderr]);
+        if (error) reject([error, stdout, stderr]);
+        else resolve([stdout, stderr]);
       });
     });
   }
