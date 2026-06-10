@@ -39018,12 +39018,12 @@ class Conflibot {
             });
             if (!pull.data.mergeable)
                 return this.exit("neutral", "PR is not mergable");
-            const pulls = await this.octokit.rest.pulls.list({
+            const pulls = await this.octokit.paginate(this.octokit.rest.pulls.list, {
                 ...github_context.repo,
                 base: pull.data.base.ref,
                 direction: "asc",
             });
-            if (pulls.data.length <= 1)
+            if (pulls.length <= 1)
                 return this.exit("success", "No other pulls found.");
             // actions/checkout@v2 is optimized to fetch a single commit by default
             const isShallow = (await this.system("git rev-parse --is-shallow-repository"))[0].startsWith("true");
@@ -39034,7 +39034,7 @@ class Conflibot {
             info(`First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`);
             await this.system(`git -c user.name=conflibot -c user.email=dummy@conflibot.invalid merge origin/${pull.data.base.ref} --no-edit`);
             const conflicts = [];
-            for (const target of pulls.data) {
+            for (const target of pulls) {
                 if (pull.data.head.sha === target.head.sha) {
                     info(`Skipping #${target.number} (${target.head.ref})`);
                     continue;
