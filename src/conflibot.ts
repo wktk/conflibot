@@ -13,7 +13,7 @@ export class Conflibot {
   failOnConflict: boolean;
   maxRetries: number;
   retryInterval: number;
-  constructor() {
+  constructor(private readonly cwd: string = process.cwd()) {
     this.token = core.getInput("github-token", { required: true });
     this.octokit = github.getOctokit(this.token);
     this.excludedPaths = core
@@ -21,14 +21,10 @@ export class Conflibot {
       .split("\n")
       .filter((x) => x !== "");
     this.failOnConflict = core.getInput("fail-on-conflict") === "true";
-    this.maxRetries = Math.max(
-      1,
-      parseInt(core.getInput("max-retries"), 10) || 5,
-    );
-    this.retryInterval = Math.max(
-      0,
-      parseFloat(core.getInput("retry-interval")) || 1,
-    );
+    const retries = parseInt(core.getInput("max-retries"), 10);
+    this.maxRetries = Number.isNaN(retries) ? 5 : Math.max(1, retries);
+    const interval = parseFloat(core.getInput("retry-interval"));
+    this.retryInterval = Number.isNaN(interval) ? 1 : Math.max(0, interval);
     core.info(`Excluded paths: ${this.excludedPaths}`);
   }
 
@@ -109,65 +105,17 @@ export class Conflibot {
       if (pulls.length <= 1)
         return this.exit("success", "No other pulls found.");
 
-      // actions/checkout fetches a single commit by default, but
-      // merge-base computation needs history back to where each PR
-      // branched off
-      const isShallow = (
-        await this.git("rev-parse", "--is-shallow-repository")
-      ).startsWith("true");
-      if (isShallow) await this.git("fetch", "--prune", "--unshallow");
-
-      // refs/pull/<n>/head exists in the base repository even when the
-      // PR comes from a fork, and the refspecs are built from PR numbers
-      // only, so attacker-controlled branch names never reach git.
-      // refs/pull/<n>/merge is the test merge commit GitHub computed for
-      // the current PR (guaranteed to exist since mergeable is true).
-      await this.git(
-        "fetch",
-        "origin",
-        `+refs/pull/${pull.data.number}/merge:refs/remotes/origin/pr-merge/${pull.data.number}`,
-        ...pulls.map(
-          (p) =>
-            `+refs/pull/${p.number}/head:refs/remotes/origin/pr/${p.number}`,
-        ),
-      );
-
       core.info(
         `Simulating merges onto ${pull.data.base.ref} + #${pull.data.number} (${pull.data.head.ref})`,
       );
-
-      const conflicts: Conflict[] = [];
-      for (const target of pulls) {
-        if (pull.data.head.sha === target.head.sha) {
-          core.info(`Skipping #${target.number} (${target.head.ref})`);
-          continue;
-        }
-        core.info(`Checking #${target.number} (${target.head.ref})`);
-
-        const mergeOutput = await this.mergeTree(
-          `origin/pr-merge/${pull.data.number}`,
-          `origin/pr/${target.number}`,
-        );
-        if (mergeOutput === null) continue;
-
-        const conflicted = parseMergeTreeOutput(
-          mergeOutput,
-          this.excludedPaths,
-        );
-        conflicted.ignored.forEach((file) => core.info(`Ignoring ${file}`));
-
-        if (conflicted.files.length > 0) {
-          conflicts.push({
-            number: target.number,
-            headRef: target.head.ref,
-            headSha: target.head.sha,
-            files: conflicted.files,
-          });
-          core.info(
-            `#${target.number} (${target.head.ref}) has ${conflicted.files.length} conflict(s)`,
-          );
-        }
-      }
+      const conflicts = await this.detectConflicts(
+        { number: pull.data.number, headSha: pull.data.head.sha },
+        pulls.map((p) => ({
+          number: p.number,
+          headRef: p.head.ref,
+          headSha: p.head.sha,
+        })),
+      );
 
       core.setOutput("conflicts", conflicts);
 
@@ -189,6 +137,66 @@ export class Conflibot {
     }
   }
 
+  // Checks every target PR against the current PR's test merge commit
+  // and returns the ones that would conflict.
+  async detectConflicts(
+    current: { number: number; headSha: string },
+    targets: { number: number; headRef: string; headSha: string }[],
+  ): Promise<Conflict[]> {
+    // actions/checkout fetches a single commit by default, but
+    // merge-base computation needs history back to where each PR
+    // branched off
+    const isShallow = (
+      await this.git("rev-parse", "--is-shallow-repository")
+    ).startsWith("true");
+    if (isShallow) await this.git("fetch", "--prune", "--unshallow");
+
+    // refs/pull/<n>/head exists in the base repository even when the
+    // PR comes from a fork, and the refspecs are built from PR numbers
+    // only, so attacker-controlled branch names never reach git.
+    // refs/pull/<n>/merge is the test merge commit GitHub computed for
+    // the current PR (guaranteed to exist since mergeable is true).
+    await this.git(
+      "fetch",
+      "origin",
+      `+refs/pull/${current.number}/merge:refs/remotes/origin/pr-merge/${current.number}`,
+      ...targets.map(
+        (p) => `+refs/pull/${p.number}/head:refs/remotes/origin/pr/${p.number}`,
+      ),
+    );
+
+    const conflicts: Conflict[] = [];
+    for (const target of targets) {
+      if (current.headSha === target.headSha) {
+        core.info(`Skipping #${target.number} (${target.headRef})`);
+        continue;
+      }
+      core.info(`Checking #${target.number} (${target.headRef})`);
+
+      const mergeOutput = await this.mergeTree(
+        `origin/pr-merge/${current.number}`,
+        `origin/pr/${target.number}`,
+      );
+      if (mergeOutput === null) continue;
+
+      const conflicted = parseMergeTreeOutput(mergeOutput, this.excludedPaths);
+      conflicted.ignored.forEach((file) => core.info(`Ignoring ${file}`));
+
+      if (conflicted.files.length > 0) {
+        conflicts.push({
+          number: target.number,
+          headRef: target.headRef,
+          headSha: target.headSha,
+          files: conflicted.files,
+        });
+        core.info(
+          `#${target.number} (${target.headRef}) has ${conflicted.files.length} conflict(s)`,
+        );
+      }
+    }
+    return conflicts;
+  }
+
   // Runs git with an argument array (no shell) so that branch names and
   // other untrusted strings can never be interpreted as shell syntax.
   private git(...args: string[]): Promise<string> {
@@ -196,7 +204,7 @@ export class Conflibot {
       execFile(
         "git",
         args,
-        { maxBuffer: 64 * 1024 * 1024 },
+        { cwd: this.cwd, maxBuffer: 64 * 1024 * 1024 },
         (error, stdout, stderr) => {
           if (error) {
             reject(
@@ -227,7 +235,7 @@ export class Conflibot {
           ours,
           theirs,
         ],
-        { maxBuffer: 64 * 1024 * 1024 },
+        { cwd: this.cwd, maxBuffer: 64 * 1024 * 1024 },
         (error, stdout, stderr) => {
           if (!error) resolve(null);
           else if (error.code === 1) resolve(stdout);
