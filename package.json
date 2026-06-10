@@ -8,7 +8,7 @@
     "format:check": "prettier --check src",
     "typecheck": "tsc --noEmit",
     "package": "ncc build src/index.ts",
-    "test": "eslint src"
+    "test": "vitest run"
   },
   "repository": "https://github.com/wktk/conflibot",
   "bugs": {
@@ -34,6 +34,7 @@
     "eslint-config-prettier": "^10",
     "prettier": "^3.8",
     "typescript": "^5.0.0",
-    "typescript-eslint": "^8.61"
+    "typescript-eslint": "^8.61",
+    "vitest": "^4.1.8"
   }
 }
