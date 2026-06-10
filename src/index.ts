@@ -200,7 +200,7 @@ class Conflibot {
       repo: string;
       pull_number: number;
     },
-  ): ReturnType<Octokit["rest"]["pulls"]["get"]> {
+  ): Promise<Awaited<ReturnType<Octokit["rest"]["pulls"]["get"]>>> {
     return this.octokit.rest.pulls.get(pr).then((result) => {
       if (result.data.mergeable !== null) return result;
       if (times == 1) throw "Timed out while waiting for a test merge commit";
