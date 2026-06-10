@@ -76,13 +76,19 @@ $ yarn install
 $ yarn test        # unit tests (vitest)
 $ yarn lint        # eslint
 $ yarn typecheck   # tsc --noEmit
-$ yarn package     # bundle dist/index.js with ncc (commit the result)
+$ yarn package     # bundle dist/index.js with ncc
 ```
 
-Dependency-update PRs from Renovate or Dependabot are auto-mergeable:
-CI rebuilds the bundle from the updated dependencies and runs the test
-suite (including a smoke test of the bundle) against it, and after the
-merge the `update-dist` workflow commits the rebuilt `dist/` to master.
+Pull requests do not need to include a rebuilt `dist/`: CI bundles
+each PR's source and runs the test suite (including a smoke test of
+the bundle) against that build, and after the merge the `update-dist`
+workflow commits the rebuilt `dist/` to master. This also lets
+Renovate and Dependabot PRs merge automatically once CI is green.
+
+When cutting a release, tag only after the `update-dist` commit for
+your merge has landed; the `verify-release` workflow rebuilds the
+bundle for every `v*` tag and fails if the tagged `dist/` does not
+match its source.
 
 ## Screenshots
 

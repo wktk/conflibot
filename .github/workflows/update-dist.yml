@@ -1,6 +1,7 @@
-# Dependency-update PRs from bots are merged without a rebuilt dist;
-# this rebuilds and commits it right after such a merge lands. Pushes
-# made with GITHUB_TOKEN do not trigger workflows, so this cannot loop.
+# PRs are merged without a rebuilt dist; this rebuilds and commits it
+# right after each merge lands. Release tags must be cut after this
+# commit (verify-release.yml guards that). Pushes made with
+# GITHUB_TOKEN do not trigger workflows, so this cannot loop.
 name: update-dist
 on:
   push:
