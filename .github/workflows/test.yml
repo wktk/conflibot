@@ -8,6 +8,8 @@ on:
 
 jobs:
   test:
+    # ubuntu-latest, not ubuntu-slim: this job compiles and bundles,
+    # and slim's single CPU makes it 2-3x slower
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

@@ -15,7 +15,7 @@ concurrency: update-dist
 
 jobs:
   update-dist:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v6
         with:
@@ -23,9 +23,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: yarn
       - name: Install packages
-        run: yarn --frozen-lockfile
+        run: |
+          npm install -g yarn
+          yarn --frozen-lockfile
       - run: yarn package
       - name: Commit the rebuilt dist if it changed
         run: |

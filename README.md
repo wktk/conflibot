@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   conflibot:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v6
       - name: Warn about potential conflicts
