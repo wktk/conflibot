@@ -38911,7 +38911,50 @@ function multimatch(list, patterns, options = {}) {
 	return result;
 }
 
-;// CONCATENATED MODULE: ./src/index.ts
+;// CONCATENATED MODULE: ./src/parse.ts
+
+// `git apply --check` reports each rejected hunk as
+// "error: patch failed: <file>:<line>"; collect unique <file>:<line>
+// entries, dropping files that match the excluded path patterns.
+function parsePatchFailures(stderr, excludedPaths) {
+    const files = [];
+    const ignored = [];
+    for (const match of stderr.matchAll(/error: patch failed: ((.*):\d+)/g)) {
+        if (multimatch(match[2], excludedPaths).length > 0) {
+            ignored.push(match[2]);
+        }
+        else {
+            files.push(match[1]);
+        }
+    }
+    return { files: [...new Set(files)], ignored: [...new Set(ignored)] };
+}
+
+;// CONCATENATED MODULE: ./src/report.ts
+function buildConflictReport(conflicts, repo) {
+    const baseUrl = `https://github.com/${repo.owner}/${repo.repo}`;
+    const text = conflicts
+        .map((conflict) => {
+        return (`- #${conflict.number} ([${conflict.headRef}](${baseUrl}/tree/${conflict.headRef}))\n` +
+            conflict.files
+                .map((file) => {
+                const match = file.match(/^(.*):(\d)$/);
+                if (!match)
+                    return `  - ${file}`;
+                return `  - [${file}](${baseUrl}/blob/${conflict.headSha}/${match[1]}#L${match[2]})`;
+            })
+                .join("\n"));
+    })
+        .join("\n");
+    const sum = conflicts
+        .map((c) => c.files.length)
+        .reduce((previous, current) => previous + current);
+    const summary = `Found ${sum} potential conflict(s) in ${conflicts.length} other PR(s)!`;
+    return { title: summary, summary, text };
+}
+
+;// CONCATENATED MODULE: ./src/conflibot.ts
+
 
 
 
@@ -39002,45 +39045,23 @@ class Conflibot {
                     if (!reason.toString().includes("patch does not apply")) {
                         throw reason[2];
                     }
-                    const patchFails = [];
-                    for (const match of reason[2].matchAll(/error: patch failed: ((.*):\d+)/g)) {
-                        if (multimatch(match[2], this.excludedPaths).length > 0) {
-                            info(`Ignoring ${match[2]}`);
-                        }
-                        else {
-                            patchFails.push(match[1]);
-                        }
-                        core_debug(JSON.stringify(match));
-                    }
-                    const files = [...new Set(patchFails)]; // unique
-                    if (files.length > 0) {
-                        conflicts.push([target, files]);
-                        info(`#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`);
+                    const failures = parsePatchFailures(reason[2], this.excludedPaths);
+                    failures.ignored.forEach((file) => info(`Ignoring ${file}`));
+                    if (failures.files.length > 0) {
+                        conflicts.push({
+                            number: target.number,
+                            headRef: target.head.ref,
+                            headSha: target.head.sha,
+                            files: failures.files,
+                        });
+                        info(`#${target.number} (${target.head.ref}) has ${failures.files.length} conflict(s)`);
                     }
                 });
             }
             if (conflicts.length == 0)
                 return this.exit("success", "No potential conflicts found!");
-            const text = conflicts
-                .map((conflict) => {
-                const branch = conflict[0].head.ref;
-                const sha = conflict[0].head.sha;
-                const baseUrl = `https://github.com/${github_context.repo.owner}/` +
-                    `${github_context.repo.repo}`;
-                return (`- #${conflict[0].number} ([${branch}](${baseUrl}/tree/${branch}))\n` +
-                    conflict[1]
-                        .map((file) => {
-                        const match = file.match(/^(.*):(\d)$/);
-                        if (!match)
-                            return `  - ${file}`;
-                        return `  - [${file}](${baseUrl}/blob/${sha}/${match[1]}#L${match[2]})`;
-                    })
-                        .join("\n"));
-            })
-                .join("\n");
-            const sum = conflicts.map((c) => c[1].length).reduce((p, c) => p + c);
-            const summary = `Found ${sum} potential conflict(s) in ${conflicts.length} other PR(s)!`;
-            this.setStatus("neutral", { title: summary, summary, text });
+            const report = buildConflictReport(conflicts, github_context.repo);
+            this.setStatus("neutral", report);
         }
         catch (error) {
             this.exit("failure", JSON.stringify(error), "Error!");
@@ -39066,6 +39087,9 @@ class Conflibot {
         });
     }
 }
+
+;// CONCATENATED MODULE: ./src/index.ts
+
 new Conflibot().run();
 
 })();
