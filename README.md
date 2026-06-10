@@ -79,6 +79,11 @@ $ yarn typecheck   # tsc --noEmit
 $ yarn package     # bundle dist/index.js with ncc (commit the result)
 ```
 
+Dependency-update PRs from Renovate or Dependabot are auto-mergeable:
+CI rebuilds the bundle from the updated dependencies and runs the test
+suite (including a smoke test of the bundle) against it, and after the
+merge the `update-dist` workflow commits the rebuilt `dist/` to master.
+
 ## Screenshots
 
 ![](./misc/checks.png)

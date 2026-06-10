@@ -1,0 +1,39 @@
+# Dependency-update PRs from bots are merged without a rebuilt dist;
+# this rebuilds and commits it right after such a merge lands. Pushes
+# made with GITHUB_TOKEN do not trigger workflows, so this cannot loop.
+name: update-dist
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+concurrency: update-dist
+
+jobs:
+  update-dist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install packages
+        run: yarn --frozen-lockfile --ignore-optional
+      - run: yarn package
+      - name: Commit the rebuilt dist if it changed
+        run: |
+          if git diff --quiet dist; then
+            echo "dist is up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist
+          git commit -m "chore: rebuild dist"
+          git push

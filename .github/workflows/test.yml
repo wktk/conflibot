@@ -20,6 +20,12 @@ jobs:
       - run: yarn lint
       - run: yarn format:check
       - run: yarn typecheck
+      # Build before testing: the dist smoke test then exercises the
+      # bundle produced from the dependencies of this PR
+      - run: yarn package
       - run: yarn test
-      - name: Make sure that the package is built
-        run: yarn package && git diff --exit-code
+      # Bots (Renovate, Dependabot) cannot rebuild dist in their PRs;
+      # update-dist.yml re-syncs it on master right after the merge
+      - name: Make sure that the committed package is up to date
+        if: ${{ !endsWith(github.actor, '[bot]') }}
+        run: git diff --exit-code
