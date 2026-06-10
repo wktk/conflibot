@@ -7,6 +7,23 @@ inputs:
     required: true
   exclude:
     description: Ignored path patterns in newline-separated glob format
+  fail-on-conflict:
+    description: >-
+      When potential conflicts are found, set the check conclusion to
+      failure and fail this step, instead of reporting a neutral check
+    default: 'false'
+  max-retries:
+    description: >-
+      How many times to poll for the test merge commit before giving up
+    default: '5'
+  retry-interval:
+    description: Seconds to wait between test merge commit polls
+    default: '1'
+outputs:
+  conflicts:
+    description: >-
+      Potential conflicts as a JSON array of
+      {number, headRef, headSha, files} objects; empty array when none
 runs:
   using: 'node24'
   main: 'dist/index.js'

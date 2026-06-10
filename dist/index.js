@@ -29326,16 +29326,16 @@ function file_command_issueFileCommand(command, message) {
     if (!filePath) {
         throw new Error(`Unable to find environment variable for file command ${command}`);
     }
-    if (!fs.existsSync(filePath)) {
+    if (!external_fs_namespaceObject.existsSync(filePath)) {
         throw new Error(`Missing file at path: ${filePath}`);
     }
-    fs.appendFileSync(filePath, `${toCommandValue(message)}${os.EOL}`, {
+    external_fs_namespaceObject.appendFileSync(filePath, `${utils_toCommandValue(message)}${external_os_namespaceObject.EOL}`, {
         encoding: 'utf8'
     });
 }
 function file_command_prepareKeyValueMessage(key, value) {
-    const delimiter = `ghadelimiter_${crypto.randomUUID()}`;
-    const convertedValue = toCommandValue(value);
+    const delimiter = `ghadelimiter_${external_crypto_namespaceObject.randomUUID()}`;
+    const convertedValue = utils_toCommandValue(value);
     // These should realistically never happen, but just in case someone finds a
     // way to exploit uuid generation let's not allow keys or values that contain
     // the delimiter.
@@ -29345,7 +29345,7 @@ function file_command_prepareKeyValueMessage(key, value) {
     if (convertedValue.includes(delimiter)) {
         throw new Error(`Unexpected input: value should not contain the delimiter "${delimiter}"`);
     }
-    return `${key}<<${delimiter}${os.EOL}${convertedValue}${os.EOL}${delimiter}`;
+    return `${key}<<${delimiter}${external_os_namespaceObject.EOL}${convertedValue}${external_os_namespaceObject.EOL}${delimiter}`;
 }
 //# sourceMappingURL=file-command.js.map
 ;// CONCATENATED MODULE: external "path"
@@ -31967,10 +31967,10 @@ function getBooleanInput(name, options) {
 function setOutput(name, value) {
     const filePath = process.env['GITHUB_OUTPUT'] || '';
     if (filePath) {
-        return issueFileCommand('OUTPUT', prepareKeyValueMessage(name, value));
+        return file_command_issueFileCommand('OUTPUT', file_command_prepareKeyValueMessage(name, value));
     }
-    process.stdout.write(os.EOL);
-    issueCommand('set-output', { name }, toCommandValue(value));
+    process.stdout.write(external_os_namespaceObject.EOL);
+    command_issueCommand('set-output', { name }, utils_toCommandValue(value));
 }
 /**
  * Enables or disables the echoing of commands into stdout for the rest of the step.
@@ -38965,12 +38965,18 @@ class Conflibot {
     token;
     octokit;
     excludedPaths;
+    failOnConflict;
+    maxRetries;
+    retryInterval;
     constructor() {
         this.token = getInput("github-token", { required: true });
         this.octokit = getOctokit(this.token);
         this.excludedPaths = getInput("exclude")
             .split("\n")
             .filter((x) => x !== "");
+        this.failOnConflict = getInput("fail-on-conflict") === "true";
+        this.maxRetries = Math.max(1, parseInt(getInput("max-retries"), 10) || 5);
+        this.retryInterval = Math.max(0, parseFloat(getInput("retry-interval")) || 1);
         info(`Excluded paths: ${this.excludedPaths}`);
     }
     async setStatus(conclusion = undefined, output = undefined) {
@@ -39013,7 +39019,8 @@ class Conflibot {
     async run() {
         try {
             await this.setStatus();
-            const pull = await this.waitForTestMergeCommit(5, {
+            setOutput("conflicts", []);
+            const pull = await this.waitForTestMergeCommit(this.maxRetries, {
                 owner: github_context.issue.owner,
                 repo: github_context.issue.repo,
                 pull_number: github_context.issue.number,
@@ -39072,10 +39079,13 @@ class Conflibot {
                     info(`#${target.number} (${target.head.ref}) has ${failures.files.length} conflict(s)`);
                 }
             }
+            setOutput("conflicts", conflicts);
             if (conflicts.length == 0)
                 return this.exit("success", "No potential conflicts found!");
             const report = buildConflictReport(conflicts, github_context.repo);
-            await this.setStatus("neutral", report);
+            await this.setStatus(this.failOnConflict ? "failure" : "neutral", report);
+            if (this.failOnConflict)
+                setFailed(report.title);
         }
         catch (error) {
             const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
@@ -39126,9 +39136,9 @@ class Conflibot {
         return this.octokit.rest.pulls.get(pr).then((result) => {
             if (result.data.mergeable !== null)
                 return result;
-            if (times == 1)
-                throw "Timed out while waiting for a test merge commit";
-            return new Promise((resolve) => setTimeout(() => resolve(this.waitForTestMergeCommit(times - 1, pr)), 1000));
+            if (times <= 1)
+                throw new Error("Timed out while waiting for a test merge commit");
+            return new Promise((resolve) => setTimeout(() => resolve(this.waitForTestMergeCommit(times - 1, pr)), this.retryInterval * 1000));
         });
     }
 }

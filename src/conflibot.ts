@@ -10,6 +10,9 @@ export class Conflibot {
   token: string;
   octokit: Octokit;
   excludedPaths: string[];
+  failOnConflict: boolean;
+  maxRetries: number;
+  retryInterval: number;
   constructor() {
     this.token = core.getInput("github-token", { required: true });
     this.octokit = github.getOctokit(this.token);
@@ -17,6 +20,15 @@ export class Conflibot {
       .getInput("exclude")
       .split("\n")
       .filter((x) => x !== "");
+    this.failOnConflict = core.getInput("fail-on-conflict") === "true";
+    this.maxRetries = Math.max(
+      1,
+      parseInt(core.getInput("max-retries"), 10) || 5,
+    );
+    this.retryInterval = Math.max(
+      0,
+      parseFloat(core.getInput("retry-interval")) || 1,
+    );
     core.info(`Excluded paths: ${this.excludedPaths}`);
   }
 
@@ -79,8 +91,9 @@ export class Conflibot {
   async run(): Promise<void> {
     try {
       await this.setStatus();
+      core.setOutput("conflicts", []);
 
-      const pull = await this.waitForTestMergeCommit(5, {
+      const pull = await this.waitForTestMergeCommit(this.maxRetries, {
         owner: github.context.issue.owner,
         repo: github.context.issue.repo,
         pull_number: github.context.issue.number,
@@ -172,11 +185,14 @@ export class Conflibot {
         }
       }
 
+      core.setOutput("conflicts", conflicts);
+
       if (conflicts.length == 0)
         return this.exit("success", "No potential conflicts found!");
 
       const report = buildConflictReport(conflicts, github.context.repo);
-      await this.setStatus("neutral", report);
+      await this.setStatus(this.failOnConflict ? "failure" : "neutral", report);
+      if (this.failOnConflict) core.setFailed(report.title);
     } catch (error) {
       const detail =
         error instanceof Error ? (error.stack ?? error.message) : String(error);
@@ -240,11 +256,12 @@ export class Conflibot {
   ): Promise<Awaited<ReturnType<Octokit["rest"]["pulls"]["get"]>>> {
     return this.octokit.rest.pulls.get(pr).then((result) => {
       if (result.data.mergeable !== null) return result;
-      if (times == 1) throw "Timed out while waiting for a test merge commit";
+      if (times <= 1)
+        throw new Error("Timed out while waiting for a test merge commit");
       return new Promise((resolve) =>
         setTimeout(
           () => resolve(this.waitForTestMergeCommit(times - 1, pr)),
-          1000,
+          this.retryInterval * 1000,
         ),
       );
     });
