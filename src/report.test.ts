@@ -11,13 +11,13 @@ describe("buildConflictReport", () => {
           number: 2,
           headRef: "feature-a",
           headSha: "aaa111",
-          files: ["src/app.ts:12", "src/util.ts:3"],
+          files: ["src/app.ts", "src/util.ts"],
         },
         {
           number: 5,
           headRef: "feature-b",
           headSha: "bbb222",
-          files: ["src/app.ts:12"],
+          files: ["src/app.ts"],
         },
       ],
       repo,
@@ -28,14 +28,14 @@ describe("buildConflictReport", () => {
     expect(report.title).toBe(report.summary);
   });
 
-  it("links each file to the conflicting line, including multi-digit lines", () => {
+  it("links each PR to its branch and each file to the target's blob", () => {
     const report = buildConflictReport(
       [
         {
           number: 2,
           headRef: "feature-a",
           headSha: "aaa111",
-          files: ["src/app.ts:12"],
+          files: ["src/app.ts"],
         },
       ],
       repo,
@@ -44,15 +44,7 @@ describe("buildConflictReport", () => {
       "- #2 ([feature-a](https://github.com/wktk/conflibot/tree/feature-a))",
     );
     expect(report.text).toContain(
-      "  - [src/app.ts:12](https://github.com/wktk/conflibot/blob/aaa111/src/app.ts#L12)",
+      "  - [src/app.ts](https://github.com/wktk/conflibot/blob/aaa111/src/app.ts)",
     );
-  });
-
-  it("falls back to plain text for entries without a line number", () => {
-    const report = buildConflictReport(
-      [{ number: 2, headRef: "a", headSha: "aaa", files: ["weird-entry"] }],
-      repo,
-    );
-    expect(report.text).toContain("  - weird-entry");
   });
 });

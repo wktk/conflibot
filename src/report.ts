@@ -22,11 +22,10 @@ export function buildConflictReport(
       return (
         `- #${conflict.number} ([${conflict.headRef}](${baseUrl}/tree/${conflict.headRef}))\n` +
         conflict.files
-          .map((file) => {
-            const match = file.match(/^(.*):(\d+)$/);
-            if (!match) return `  - ${file}`;
-            return `  - [${file}](${baseUrl}/blob/${conflict.headSha}/${match[1]}#L${match[2]})`;
-          })
+          .map(
+            (file) =>
+              `  - [${file}](${baseUrl}/blob/${conflict.headSha}/${file})`,
+          )
           .join("\n")
       );
     })

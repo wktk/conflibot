@@ -29,7 +29,9 @@ jobs:
             **/*.bin
 ```
 
-The `pull_request_target` event is used so the check can be reported with write permissions even for PRs from forks. conflibot only reads PR contents through `refs/pull/*/head`; it never executes code from the PR.
+The `pull_request_target` event is used so the check can be reported with write permissions even for PRs from forks. conflibot only reads PR contents through `refs/pull/*/head` and `refs/pull/*/merge`; it never executes code from the PR, and it never modifies the checked-out working tree.
+
+Conflict detection uses `git merge-tree`, so the runner needs git 2.38 or later (GitHub-hosted runners all qualify; only older self-hosted runners may need a git upgrade).
 
 ### Inputs
 
@@ -45,7 +47,7 @@ The `pull_request_target` event is used so the check can be reported with write 
 
 | Name | Description |
 | ---- | ----------- |
-| `conflicts` | Potential conflicts as a JSON array of `{number, headRef, headSha, files}` objects; `[]` when none are found |
+| `conflicts` | Potential conflicts as a JSON array of `{number, headRef, headSha, files}` objects, where `files` lists the conflicting file paths; `[]` when none are found |
 
 The output can feed follow-up steps, for example posting a comment:
 
@@ -62,10 +64,10 @@ The output can feed follow-up steps, for example posting a comment:
 
 ## How it works
 
-1. Wait until GitHub finishes computing the test merge commit for the current PR; skip with a neutral check if the PR is not mergeable.
+1. Wait until GitHub finishes computing the test merge commit (`refs/pull/<n>/merge`) for the current PR; skip with a neutral check if the PR is not mergeable.
 2. List every other open PR with the same base branch (paginated, so large repositories are fully covered).
-3. Fetch `refs/pull/<n>/head` for all of them (works for forks too), check out the current PR's head, and merge the base branch into it.
-4. For each other PR, generate its patch against the base and test whether it still applies with `git apply --check`. Files that fail to apply are reported as potential conflicts.
+3. Fetch `refs/pull/<n>/head` for all of them (works for forks too) and the current PR's test merge commit.
+4. For each other PR, run `git merge-tree --write-tree` between the test merge commit and that PR's head — an in-memory merge using the same strategy as a real `git merge`, without touching the working tree. Files that would conflict are reported.
 
 ## Development
 

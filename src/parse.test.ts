@@ -1,42 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { parsePatchFailures } from "./parse";
+import { parseMergeTreeOutput } from "./parse";
 
-const stderr = [
-  "error: patch failed: src/app.ts:12",
-  "error: src/app.ts: patch does not apply",
-  "error: patch failed: yarn.lock:1024",
-  "error: yarn.lock: patch does not apply",
-  "error: patch failed: docs/readme.md:3",
-  "error: docs/readme.md: patch does not apply",
-].join("\n");
+const oid = "393d3320cab4a94651cc9b46472973a6663a5b08";
 
-describe("parsePatchFailures", () => {
-  it("collects file:line entries from git apply stderr", () => {
-    const result = parsePatchFailures(stderr, []);
-    expect(result.files).toEqual([
-      "src/app.ts:12",
-      "yarn.lock:1024",
-      "docs/readme.md:3",
-    ]);
+describe("parseMergeTreeOutput", () => {
+  it("drops the result tree OID and collects conflicted files", () => {
+    const output = `${oid}\0src/app.ts\0yarn.lock\0docs/readme.md\0`;
+    const result = parseMergeTreeOutput(output, []);
+    expect(result.files).toEqual(["src/app.ts", "yarn.lock", "docs/readme.md"]);
     expect(result.ignored).toEqual([]);
   });
 
   it("drops files matching excluded path patterns", () => {
-    const result = parsePatchFailures(stderr, ["yarn.lock", "docs/**"]);
-    expect(result.files).toEqual(["src/app.ts:12"]);
+    const output = `${oid}\0src/app.ts\0yarn.lock\0docs/readme.md\0`;
+    const result = parseMergeTreeOutput(output, ["yarn.lock", "docs/**"]);
+    expect(result.files).toEqual(["src/app.ts"]);
     expect(result.ignored).toEqual(["yarn.lock", "docs/readme.md"]);
   });
 
-  it("deduplicates repeated failures in the same file", () => {
-    const repeated = [
-      "error: patch failed: src/app.ts:12",
-      "error: patch failed: src/app.ts:12",
-    ].join("\n");
-    expect(parsePatchFailures(repeated, []).files).toEqual(["src/app.ts:12"]);
-  });
-
-  it("returns nothing for unrelated stderr", () => {
-    const result = parsePatchFailures("fatal: bad revision 'origin/x'", []);
+  it("returns nothing for a clean merge (OID only)", () => {
+    const result = parseMergeTreeOutput(`${oid}\0`, []);
     expect(result.files).toEqual([]);
     expect(result.ignored).toEqual([]);
   });

@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { execFile, spawn } from "node:child_process";
-import { parsePatchFailures } from "./parse";
+import { execFile } from "node:child_process";
+import { parseMergeTreeOutput } from "./parse";
 import { buildConflictReport, Conflict } from "./report";
 
 type Octokit = ReturnType<typeof github.getOctokit>;
@@ -109,39 +109,31 @@ export class Conflibot {
       if (pulls.length <= 1)
         return this.exit("success", "No other pulls found.");
 
-      // actions/checkout is optimized to fetch a single commit by default
+      // actions/checkout fetches a single commit by default, but
+      // merge-base computation needs history back to where each PR
+      // branched off
       const isShallow = (
         await this.git("rev-parse", "--is-shallow-repository")
       ).startsWith("true");
       if (isShallow) await this.git("fetch", "--prune", "--unshallow");
 
       // refs/pull/<n>/head exists in the base repository even when the
-      // PR comes from a fork, and the refspec is built from PR numbers
+      // PR comes from a fork, and the refspecs are built from PR numbers
       // only, so attacker-controlled branch names never reach git.
-      const numbers = new Set(pulls.map((p) => p.number));
-      numbers.add(pull.data.number);
+      // refs/pull/<n>/merge is the test merge commit GitHub computed for
+      // the current PR (guaranteed to exist since mergeable is true).
       await this.git(
         "fetch",
         "origin",
-        ...[...numbers].map(
-          (n) => `+refs/pull/${n}/head:refs/remotes/origin/pr/${n}`,
+        `+refs/pull/${pull.data.number}/merge:refs/remotes/origin/pr-merge/${pull.data.number}`,
+        ...pulls.map(
+          (p) =>
+            `+refs/pull/${p.number}/head:refs/remotes/origin/pr/${p.number}`,
         ),
       );
 
-      // actions/checkout checks out the base branch on pull_request_target
-      await this.git("checkout", "--detach", `origin/pr/${pull.data.number}`);
-
       core.info(
-        `First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`,
-      );
-      await this.git(
-        "-c",
-        "user.name=conflibot",
-        "-c",
-        "user.email=dummy@conflibot.invalid",
-        "merge",
-        `origin/${pull.data.base.ref}`,
-        "--no-edit",
+        `Simulating merges onto ${pull.data.base.ref} + #${pull.data.number} (${pull.data.head.ref})`,
       );
 
       const conflicts: Conflict[] = [];
@@ -152,35 +144,27 @@ export class Conflibot {
         }
         core.info(`Checking #${target.number} (${target.head.ref})`);
 
-        const patch = await this.git(
-          "format-patch",
-          `origin/${pull.data.base.ref}..origin/pr/${target.number}`,
-          "--stdout",
+        const mergeOutput = await this.mergeTree(
+          `origin/pr-merge/${pull.data.number}`,
+          `origin/pr/${target.number}`,
         );
-        if (patch === "") {
-          core.info(`#${target.number} has no commits beyond the base`);
-          continue;
-        }
+        if (mergeOutput === null) continue;
 
-        const applyError = await this.applyCheck(patch);
-        if (applyError === null) continue;
-        // Patch application error expected.  Throw an error if not.
-        if (!applyError.includes("patch does not apply")) {
-          throw new Error(applyError);
-        }
+        const conflicted = parseMergeTreeOutput(
+          mergeOutput,
+          this.excludedPaths,
+        );
+        conflicted.ignored.forEach((file) => core.info(`Ignoring ${file}`));
 
-        const failures = parsePatchFailures(applyError, this.excludedPaths);
-        failures.ignored.forEach((file) => core.info(`Ignoring ${file}`));
-
-        if (failures.files.length > 0) {
+        if (conflicted.files.length > 0) {
           conflicts.push({
             number: target.number,
             headRef: target.head.ref,
             headSha: target.head.sha,
-            files: failures.files,
+            files: conflicted.files,
           });
           core.info(
-            `#${target.number} (${target.head.ref}) has ${failures.files.length} conflict(s)`,
+            `#${target.number} (${target.head.ref}) has ${conflicted.files.length} conflict(s)`,
           );
         }
       }
@@ -226,23 +210,33 @@ export class Conflibot {
     });
   }
 
-  // Resolves with null when the patch applies cleanly, or with git's
-  // stderr when it does not.
-  private applyCheck(patch: string): Promise<string | null> {
+  // Merges two commits in memory with the same strategy a real
+  // `git merge` would use (requires git >= 2.38); resolves with null
+  // when the merge is clean, or with the NUL-separated list of
+  // conflicted files when it is not.
+  private mergeTree(ours: string, theirs: string): Promise<string | null> {
     return new Promise((resolve, reject) => {
-      const child = spawn("git", ["apply", "--check"], {
-        stdio: ["pipe", "ignore", "pipe"],
-      });
-      let stderr = "";
-      child.stderr.on("data", (chunk) => (stderr += chunk));
-      child.on("error", reject);
-      child.on("close", (code) => {
-        if (code === 0) resolve(null);
-        else resolve(stderr);
-      });
-      // git may exit before consuming all of its stdin; ignore the EPIPE
-      child.stdin.on("error", () => undefined);
-      child.stdin.end(patch);
+      execFile(
+        "git",
+        [
+          "merge-tree",
+          "--write-tree",
+          "--name-only",
+          "--no-messages",
+          "-z",
+          ours,
+          theirs,
+        ],
+        { maxBuffer: 64 * 1024 * 1024 },
+        (error, stdout, stderr) => {
+          if (!error) resolve(null);
+          else if (error.code === 1) resolve(stdout);
+          else
+            reject(
+              new Error(`git merge-tree failed: ${stderr || error.message}`),
+            );
+        },
+      );
     });
   }
 
