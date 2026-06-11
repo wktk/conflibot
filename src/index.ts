@@ -1,6 +1,6 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { exec } from "child_process";
+import { execFile, spawn } from "child_process";
 import multimatch from "multimatch";
 
 type Octokit = ReturnType<typeof github.getOctokit>;
@@ -97,18 +97,24 @@ class Conflibot {
 
       // actions/checkout@v2 is optimized to fetch a single commit by default
       const isShallow = (
-        await this.system("git rev-parse --is-shallow-repository")
-      )[0].startsWith("true");
-      if (isShallow) await this.system("git fetch --prune --unshallow");
+        await this.git("rev-parse", "--is-shallow-repository")
+      ).startsWith("true");
+      if (isShallow) await this.git("fetch", "--prune", "--unshallow");
 
       // actions/checkout@v2 checks out a merge commit by default
-      await this.system(`git checkout ${pull.data.head.ref}`);
+      await this.git("checkout", pull.data.head.ref);
 
       core.info(
         `First, merging ${pull.data.base.ref} into ${pull.data.head.ref}`,
       );
-      await this.system(
-        `git -c user.name=conflibot -c user.email=dummy@conflibot.invalid merge origin/${pull.data.base.ref} --no-edit`,
+      await this.git(
+        "-c",
+        "user.name=conflibot",
+        "-c",
+        "user.email=dummy@conflibot.invalid",
+        "merge",
+        `origin/${pull.data.base.ref}`,
+        "--no-edit",
       );
 
       type PullsListResponse = Awaited<
@@ -123,34 +129,37 @@ class Conflibot {
         }
         core.info(`Checking #${target.number} (${target.head.ref})`);
 
-        await this.system(
-          `git format-patch origin/${pull.data.base.ref}..origin/${target.head.ref} --stdout | git apply --check`,
-        ).catch((reason: [string, string, string]) => {
-          // Patch application error expected.  Throw an error if not.
-          if (!reason.toString().includes("patch does not apply")) {
-            throw reason[2];
-          }
+        const patch = await this.git(
+          "format-patch",
+          `origin/${pull.data.base.ref}..origin/${target.head.ref}`,
+          "--stdout",
+        );
+        const applyError = await this.applyCheck(patch);
+        if (applyError === null) continue;
+        // Patch application error expected.  Throw an error if not.
+        if (!applyError.includes("patch does not apply")) {
+          throw new Error(applyError);
+        }
 
-          const patchFails: Array<string> = [];
-          for (const match of reason[2].matchAll(
-            /error: patch failed: ((.*):\d+)/g,
-          )) {
-            if (multimatch(match[2], this.excludedPaths).length > 0) {
-              core.info(`Ignoring ${match[2]}`);
-            } else {
-              patchFails.push(match[1]);
-            }
-            core.debug(JSON.stringify(match));
+        const patchFails: Array<string> = [];
+        for (const match of applyError.matchAll(
+          /error: patch failed: ((.*):\d+)/g,
+        )) {
+          if (multimatch(match[2], this.excludedPaths).length > 0) {
+            core.info(`Ignoring ${match[2]}`);
+          } else {
+            patchFails.push(match[1]);
           }
+          core.debug(JSON.stringify(match));
+        }
 
-          const files = [...new Set(patchFails)]; // unique
-          if (files.length > 0) {
-            conflicts.push([target, files]);
-            core.info(
-              `#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`,
-            );
-          }
-        });
+        const files = [...new Set(patchFails)]; // unique
+        if (files.length > 0) {
+          conflicts.push([target, files]);
+          core.info(
+            `#${target.number} (${target.head.ref}) has ${files.length} conflict(s)`,
+          );
+        }
       }
 
       if (conflicts.length == 0)
@@ -185,11 +194,44 @@ class Conflibot {
     }
   }
 
-  private system(command: string): Promise<[string, string]> {
+  // Runs git with an argument array (no shell) so that branch names and
+  // other untrusted strings can never be interpreted as shell syntax.
+  private git(...args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-      exec(command, (error, stdout, stderr) => {
-        error ? reject([error, stdout, stderr]) : resolve([stdout, stderr]);
+      execFile(
+        "git",
+        args,
+        { maxBuffer: 64 * 1024 * 1024 },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(
+              new Error(`git ${args[0]} failed: ${stderr || error.message}`),
+            );
+          } else {
+            resolve(stdout);
+          }
+        },
+      );
+    });
+  }
+
+  // Resolves with null when the patch applies cleanly, or with git's
+  // stderr when it does not.
+  private applyCheck(patch: string): Promise<string | null> {
+    return new Promise((resolve, reject) => {
+      const child = spawn("git", ["apply", "--check"], {
+        stdio: ["pipe", "ignore", "pipe"],
       });
+      let stderr = "";
+      child.stderr.on("data", (chunk) => (stderr += chunk));
+      child.on("error", reject);
+      child.on("close", (code) => {
+        if (code === 0) resolve(null);
+        else resolve(stderr);
+      });
+      // git may exit before consuming all of its stdin; ignore the EPIPE
+      child.stdin.on("error", () => undefined);
+      child.stdin.end(patch);
     });
   }
 
