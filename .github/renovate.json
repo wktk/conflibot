@@ -1,6 +1,15 @@
 {
   "assignees": ["wktk"],
   "reviewers": ["wktk"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^README\\.md$"],
+      "matchStrings": ["uses:\\s+(?<depName>[\\w-]+/[\\w-]+)@(?<currentValue>v\\d+)"],
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "github-actions"
+    }
+  ],
   "packageRules": [
     {
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
