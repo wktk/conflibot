@@ -19,7 +19,7 @@ jobs:
   conflibot:
     runs-on: ubuntu-slim
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Warn about potential conflicts
         uses: wktk/conflibot@v2
         with:
