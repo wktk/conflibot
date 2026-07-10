@@ -31,8 +31,7 @@ export class Conflibot {
   async setStatus(
     conclusion: "success" | "failure" | "neutral" | undefined = undefined,
     output:
-      | { title: string; summary: string; text?: string }
-      | undefined = undefined,
+      { title: string; summary: string; text?: string } | undefined = undefined,
   ): Promise<
     ReturnType<
       Octokit["rest"]["checks"]["create"] | Octokit["rest"]["checks"]["update"]
@@ -56,8 +55,7 @@ export class Conflibot {
       name: "conflibot/details",
       head_sha: pr.head.sha,
       status: (conclusion ? "completed" : "in_progress") as
-        | "completed"
-        | "in_progress",
+        "completed" | "in_progress",
       conclusion,
       output,
     };
