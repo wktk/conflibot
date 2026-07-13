@@ -1,7 +1,5 @@
-# PRs are merged without a rebuilt dist; this rebuilds and commits it
-# right after each merge lands. Release tags must be cut after this
-# commit (verify-release.yml guards that). Pushes made with
-# GITHUB_TOKEN do not trigger workflows, so this cannot loop.
+# Sync dist via a PR, not a direct push: master requires the "test"
+# check, and only a PR (not a GITHUB_TOKEN push) triggers it.
 name: update-dist
 on:
   push:
@@ -10,12 +8,16 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency: update-dist
 
 jobs:
   update-dist:
     runs-on: ubuntu-slim
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: update-dist
     steps:
       - uses: actions/checkout@v7
         with:
@@ -28,7 +30,7 @@ jobs:
           npm install -g yarn
           yarn --frozen-lockfile
       - run: yarn package
-      - name: Commit the rebuilt dist if it changed
+      - name: Open or update a PR with the rebuilt dist
         run: |
           if git diff --quiet dist; then
             echo "dist is up to date"
@@ -36,6 +38,13 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
           git add dist
           git commit -m "chore: rebuild dist"
-          git push
+          # Replace any stale branch from an earlier unmerged run.
+          git push --force origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+            gh pr create --head "$BRANCH" --base master \
+              --title "chore: rebuild dist" \
+              --body "Rebuilt \`dist/\` to match master after the latest merge."
+          fi
