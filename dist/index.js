@@ -36704,7 +36704,7 @@ function combine(acc, pre, values, max, maxLength, dropEmpties) {
 }
 // The expansion values of a single numeric (`1..5`) or alphabetic (`a..e..2`)
 // sequence body.
-function expandSequence(body, isAlphaSequence, max) {
+function expandSequence(body, isAlphaSequence, max, maxLength) {
     const n = body.split(/\.\./);
     const N = [];
     // A sequence body always splits into two or three parts, but the compiler
@@ -36727,6 +36727,7 @@ function expandSequence(body, isAlphaSequence, max) {
         test = gte;
     }
     const pad = n.some(isPadded);
+    let length = 0;
     for (let i = x; test(i, y) && N.length < max; i += incr) {
         let c;
         if (isAlphaSequence) {
@@ -36750,7 +36751,10 @@ function expandSequence(body, isAlphaSequence, max) {
                 }
             }
         }
+        if (length + c.length > maxLength)
+            break;
         N.push(c);
+        length += c.length;
     }
     return N;
 }
@@ -36804,7 +36808,7 @@ function expand_(str, max, maxLength, isTop) {
         }
         let values;
         if (isSequence) {
-            values = expandSequence(m.body, isAlphaSequence, max);
+            values = expandSequence(m.body, isAlphaSequence, max, maxLength);
         }
         else {
             let n = parseCommaParts(m.body);
@@ -36822,9 +36826,31 @@ function expand_(str, max, maxLength, isTop) {
                 }
                 /* c8 ignore stop */
             }
+            // Values that `combine` is going to drop as empty produce no result, so
+            // they must not count against `max` - otherwise `{a,,b}` with `max: 2`
+            // would stop at `['a', '']` and yield one result instead of two. Skipping
+            // them outright keeps `values` bounded while leaving `max` a bound on
+            // *kept* results.
+            let dropsEmpties = dropEmpties && !m.post.length && !pre;
+            for (let d = 0; dropsEmpties && d < acc.length; d++) {
+                if (acc[d]) {
+                    dropsEmpties = false;
+                }
+            }
             values = [];
-            for (let j = 0; j < n.length; j++) {
-                values.push.apply(values, expand_(n[j], max, maxLength, false));
+            let valuesLength = 0;
+            outer: for (let j = 0; j < n.length; j++) {
+                const expanded = expand_(n[j], max, maxLength, false);
+                for (let k = 0; k < expanded.length; k++) {
+                    const v = expanded[k];
+                    if (dropsEmpties && !v)
+                        continue;
+                    if (values.length >= max || valuesLength + v.length > maxLength) {
+                        break outer;
+                    }
+                    values.push(v);
+                    valuesLength += v.length;
+                }
             }
         }
         acc = combine(acc, pre, values, max, maxLength, dropEmpties && !m.post.length);
@@ -36835,7 +36861,7 @@ function expand_(str, max, maxLength, isTop) {
     return acc;
 }
 //# sourceMappingURL=index.js.map
-;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/assert-valid-pattern.js
+;// CONCATENATED MODULE: ./node_modules/multimatch/node_modules/minimatch/dist/esm/assert-valid-pattern.js
 const MAX_PATTERN_LENGTH = 1024 * 64;
 const assertValidPattern = (pattern) => {
     if (typeof pattern !== 'string') {
@@ -36846,7 +36872,7 @@ const assertValidPattern = (pattern) => {
     }
 };
 //# sourceMappingURL=assert-valid-pattern.js.map
-;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/brace-expressions.js
+;// CONCATENATED MODULE: ./node_modules/multimatch/node_modules/minimatch/dist/esm/brace-expressions.js
 // translate the various posix character classes into unicode properties
 // this works across all unicode locales
 // { <posix class>: [<translation>, /u flag required, negated]
@@ -36993,7 +37019,7 @@ const parseClass = (glob, position) => {
     return [comb, uflag, endPos - pos, true];
 };
 //# sourceMappingURL=brace-expressions.js.map
-;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/unescape.js
+;// CONCATENATED MODULE: ./node_modules/multimatch/node_modules/minimatch/dist/esm/unescape.js
 /**
  * Un-escape a string that has been escaped with {@link escape}.
  *
@@ -37028,7 +37054,7 @@ const unescape_unescape = (s, { windowsPathsNoEscape = false, magicalBraces = tr
             .replace(/\\([^/{}])/g, '$1');
 };
 //# sourceMappingURL=unescape.js.map
-;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/ast.js
+;// CONCATENATED MODULE: ./node_modules/multimatch/node_modules/minimatch/dist/esm/ast.js
 // parse a single path portion
 var _a;
 
@@ -37870,7 +37896,7 @@ class AST {
 }
 _a = AST;
 //# sourceMappingURL=ast.js.map
-;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/escape.js
+;// CONCATENATED MODULE: ./node_modules/multimatch/node_modules/minimatch/dist/esm/escape.js
 /**
  * Escape all magic characters in a glob pattern.
  *
@@ -37897,7 +37923,7 @@ const escape_escape = (s, { windowsPathsNoEscape = false, magicalBraces = false,
         : s.replace(/[?*()[\]\\]/g, '\\$&');
 };
 //# sourceMappingURL=escape.js.map
-;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/index.js
+;// CONCATENATED MODULE: ./node_modules/multimatch/node_modules/minimatch/dist/esm/index.js
 
 
 
