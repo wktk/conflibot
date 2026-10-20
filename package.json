@@ -33,7 +33,7 @@
     "eslint": "^10",
     "eslint-config-prettier": "^10",
     "prettier": "^3.8",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.0",
     "typescript-eslint": "^8.61",
     "vitest": "^4.1.8"
   }
